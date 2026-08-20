@@ -1,177 +1,190 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
-  FlatList,
+  ScrollView,
   Pressable,
   Image,
   StyleSheet,
-  RefreshControl,
-  TextInput,
   ActivityIndicator,
+  TextInput,
+  useWindowDimensions,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getFeed, isConfigured, addArticle, Article } from "../lib/api";
+import {
+  GestureDetector,
+  Gesture,
+  GestureHandlerRootView,
+} from "react-native-gesture-handler";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  runOnJS,
+} from "react-native-reanimated";
+import RenderHtml from "react-native-render-html";
+import {
+  getFeed,
+  getArticle,
+  markRead,
+  archiveArticle,
+  recordInterest,
+  addArticle,
+  isConfigured,
+  Article,
+  Segment,
+} from "../lib/api";
 import { colors, spacing } from "../lib/theme";
 
-function timeAgo(dateStr: string): string {
-  const date = new Date(dateStr + "Z");
-  const now = new Date();
-  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d`;
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+function formatDate(dateStr: string): string {
+  if (!dateStr) return "";
+  try {
+    return new Date(dateStr).toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return "";
+  }
 }
 
 function readingTime(wordCount: number): string {
-  return `${Math.max(1, Math.round(wordCount / 238))} min`;
+  return `${Math.max(1, Math.round(wordCount / 238))} min read`;
 }
 
-const captureLabels: Record<string, string> = {
-  auto: "unfinished",
-  manual: "saved",
-  bookmark: "bookmarked",
-  suggested: "suggested",
+const baseTagsStyles = {
+  body: {
+    color: colors.text,
+    fontFamily: "System",
+    fontSize: 18,
+    lineHeight: 32,
+  },
+  p: { marginBottom: 0, marginTop: 0 },
+  a: { color: colors.accent, textDecorationLine: "underline" as const },
+  h1: {
+    fontFamily: "System",
+    fontWeight: "600" as const,
+    fontSize: 24,
+    color: colors.text,
+  },
+  h2: {
+    fontFamily: "System",
+    fontWeight: "600" as const,
+    fontSize: 20,
+    color: colors.text,
+  },
+  h3: {
+    fontFamily: "System",
+    fontWeight: "600" as const,
+    fontSize: 18,
+    color: colors.text,
+  },
+  blockquote: {
+    borderLeftWidth: 2,
+    borderLeftColor: colors.accent,
+    paddingLeft: 16,
+    fontStyle: "italic" as const,
+    color: colors.textSecondary,
+  },
+  img: { borderRadius: 10 },
+  pre: {
+    backgroundColor: colors.bgRaised,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    padding: 12,
+  },
+  code: {
+    fontFamily: "Courier",
+    fontSize: 14,
+    backgroundColor: colors.bgRaised,
+  },
+  li: { color: colors.text },
 };
 
-type Filter = "unread" | "read" | "all";
-
-function HeroCard({
-  article,
-  onPress,
+function TappableParagraph({
+  segment,
+  articleId,
+  isTapped,
+  contentWidth,
 }: {
-  article: Article;
-  onPress: () => void;
+  segment: Segment;
+  articleId: number;
+  isTapped: boolean;
+  contentWidth: number;
 }) {
-  return (
-    <Pressable style={styles.heroCard} onPress={onPress}>
-      {article.lead_image_url ? (
-        <Image
-          source={{ uri: article.lead_image_url }}
-          style={styles.heroImage}
-          resizeMode="cover"
-        />
-      ) : null}
-      <View style={styles.heroContent}>
-        <View style={styles.metaRow}>
-          {article.site_name ? (
-            <Text style={styles.metaSite}>{article.site_name}</Text>
-          ) : null}
-          <Text style={styles.metaDot}>·</Text>
-          <Text style={styles.metaTime}>{timeAgo(article.created_at)}</Text>
-          <Text style={styles.metaCapture}>
-            {captureLabels[article.capture_method] || article.capture_method}
-          </Text>
-        </View>
-        <Text style={styles.heroTitle}>{article.title}</Text>
-        {article.excerpt ? (
-          <Text style={styles.heroExcerpt} numberOfLines={2}>
-            {article.excerpt}
-          </Text>
-        ) : null}
-        <View style={styles.metaRow}>
-          {article.author ? (
-            <Text style={styles.metaAuthor}>{article.author}</Text>
-          ) : null}
-          {article.word_count > 0 ? (
-            <Text style={styles.metaTime}>
-              {readingTime(article.word_count)}
-            </Text>
-          ) : null}
-        </View>
-      </View>
-    </Pressable>
-  );
-}
+  const [tapped, setTapped] = useState(isTapped);
+  const bgOpacity = useSharedValue(isTapped ? 0.08 : 0);
+  const lastTap = useRef(0);
 
-function ArticleCard({
-  article,
-  onPress,
-}: {
-  article: Article;
-  onPress: () => void;
-}) {
-  if (article.source_type === "tweet") {
-    return (
-      <Pressable style={styles.card} onPress={onPress}>
-        <View style={styles.cardInner}>
-          <View style={styles.metaRow}>
-            <Text style={[styles.metaSite, { color: colors.textTertiary }]}>
-              {article.author || "tweet"}
-            </Text>
-            <Text style={styles.metaDot}>·</Text>
-            <Text style={styles.metaTime}>{timeAgo(article.created_at)}</Text>
-          </View>
-          <Text style={styles.tweetText} numberOfLines={4}>
-            {article.text_content || article.excerpt || article.title}
-          </Text>
-        </View>
-      </Pressable>
-    );
+  const animatedBg = useAnimatedStyle(() => ({
+    backgroundColor: `rgba(201, 168, 124, ${bgOpacity.value})`,
+  }));
+
+  function handlePress() {
+    const now = Date.now();
+    if (now - lastTap.current < 350) {
+      if (!tapped) {
+        setTapped(true);
+        bgOpacity.value = withTiming(0.15, { duration: 200 });
+        setTimeout(() => {
+          bgOpacity.value = withTiming(0.08, { duration: 400 });
+        }, 600);
+        recordInterest(articleId, segment.index, segment.text).catch(() => {});
+      }
+    }
+    lastTap.current = now;
   }
 
   return (
-    <Pressable style={styles.card} onPress={onPress}>
-      <View style={styles.cardRow}>
-        <View style={styles.cardTextArea}>
-          <View style={styles.metaRow}>
-            {article.site_name ? (
-              <Text style={styles.metaSite}>{article.site_name}</Text>
-            ) : null}
-            <Text style={styles.metaDot}>·</Text>
-            <Text style={styles.metaTime}>{timeAgo(article.created_at)}</Text>
-            <Text style={styles.metaCapture}>
-              {captureLabels[article.capture_method] || article.capture_method}
-            </Text>
+    <Pressable onPress={handlePress}>
+      <Animated.View style={[styles.paragraph, animatedBg]}>
+        <RenderHtml
+          contentWidth={contentWidth}
+          source={{ html: segment.html }}
+          tagsStyles={baseTagsStyles}
+          defaultTextProps={{ selectable: true }}
+        />
+        {tapped && (
+          <View style={styles.tappedIndicator}>
+            <View style={styles.tappedDot} />
           </View>
-          <Text style={styles.cardTitle} numberOfLines={3}>
-            {article.title}
-          </Text>
-          {article.excerpt ? (
-            <Text style={styles.cardExcerpt} numberOfLines={2}>
-              {article.excerpt}
-            </Text>
-          ) : null}
-          <View style={styles.metaRow}>
-            {article.author ? (
-              <Text style={styles.metaAuthor}>{article.author}</Text>
-            ) : null}
-            {article.word_count > 0 ? (
-              <Text style={styles.metaTime}>
-                {readingTime(article.word_count)}
-              </Text>
-            ) : null}
-          </View>
-        </View>
-        {article.lead_image_url ? (
-          <Image
-            source={{ uri: article.lead_image_url }}
-            style={styles.cardThumb}
-            resizeMode="cover"
-          />
-        ) : null}
-      </View>
+        )}
+      </Animated.View>
     </Pressable>
   );
 }
 
-export default function FeedScreen() {
-  const [articles, setArticles] = useState<Article[]>([]);
-  const [suggestions, setSuggestions] = useState<Article[]>([]);
+interface FullArticle extends Article {
+  segments?: Segment[];
+  tappedParagraphs?: number[];
+}
+
+export default function FeedReaderScreen() {
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const contentWidth = width - spacing.lg * 2;
+
+  const [feedIds, setFeedIds] = useState<number[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [article, setArticle] = useState<FullArticle | null>(null);
+  const [segments, setSegments] = useState<Segment[]>([]);
+  const [tappedParagraphs, setTappedParagraphs] = useState<Set<number>>(
+    new Set()
+  );
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<Filter>("unread");
+  const [loadingArticle, setLoadingArticle] = useState(false);
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [addUrl, setAddUrl] = useState("");
   const [adding, setAdding] = useState(false);
-  const router = useRouter();
+  const [empty, setEmpty] = useState(false);
+
+  const translateX = useSharedValue(0);
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     isConfigured().then((ok) => {
@@ -180,41 +193,110 @@ export default function FeedScreen() {
     });
   }, [router]);
 
-  const fetchArticles = useCallback(async () => {
+  const fetchFeed = useCallback(async () => {
     try {
-      const data = await getFeed(filter);
-      setArticles(data.articles);
-      if (data.suggestions) setSuggestions(data.suggestions);
+      const data = await getFeed("unread", 1, 100);
+      const ids = data.articles.map((a: Article) => a.id);
+      if (data.suggestions) {
+        for (const s of data.suggestions) {
+          if (!ids.includes(s.id)) ids.push(s.id);
+        }
+      }
+      setFeedIds(ids);
+      if (ids.length === 0) {
+        setEmpty(true);
+        setLoading(false);
+        return;
+      }
+      setEmpty(false);
+      return ids;
+    } catch {
+      setLoading(false);
+      return [];
+    }
+  }, []);
+
+  const loadArticle = useCallback(async (id: number) => {
+    setLoadingArticle(true);
+    try {
+      const art = await getArticle(id);
+      setArticle(art);
+      setSegments(art.segments || []);
+      setTappedParagraphs(new Set(art.tappedParagraphs || []));
+      markRead(id).catch(() => {});
     } catch {}
-    setLoading(false);
-  }, [filter]);
+    setLoadingArticle(false);
+  }, []);
 
   useEffect(() => {
     if (configured) {
       setLoading(true);
-      fetchArticles();
+      fetchFeed().then((ids) => {
+        if (ids && ids.length > 0) {
+          loadArticle(ids[0]).then(() => setLoading(false));
+        }
+      });
     }
-  }, [configured, fetchArticles]);
+  }, [configured, fetchFeed, loadArticle]);
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchArticles();
-    setRefreshing(false);
-  }, [fetchArticles]);
+  useEffect(() => {
+    if (feedIds.length > 0 && feedIds[currentIndex]) {
+      loadArticle(feedIds[currentIndex]);
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+    }
+  }, [currentIndex, feedIds, loadArticle]);
+
+  const goNext = useCallback(() => {
+    if (currentIndex < feedIds.length - 1) {
+      if (article) archiveArticle(article.id).catch(() => {});
+      setCurrentIndex((i) => i + 1);
+    }
+  }, [currentIndex, feedIds.length, article]);
+
+  const goPrev = useCallback(() => {
+    if (currentIndex > 0) {
+      setCurrentIndex((i) => i - 1);
+    }
+  }, [currentIndex]);
+
+  const hasNext = currentIndex < feedIds.length - 1;
+  const hasPrev = currentIndex > 0;
+
+  const gesture = Gesture.Pan()
+    .activeOffsetX([-30, 30])
+    .failOffsetY([-10, 10])
+    .onUpdate((e) => {
+      translateX.value = e.translationX * 0.3;
+    })
+    .onEnd((e) => {
+      if (e.translationX < -100 && hasNext) {
+        runOnJS(goNext)();
+      } else if (e.translationX > 100 && hasPrev) {
+        runOnJS(goPrev)();
+      }
+      translateX.value = withSpring(0, { damping: 20, stiffness: 200 });
+    });
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
 
   async function handleAdd() {
     if (!addUrl.trim()) return;
     setAdding(true);
     try {
-      await addArticle(addUrl.trim());
+      const result = await addArticle(addUrl.trim());
       setAddUrl("");
       setShowAdd(false);
-      fetchArticles();
+      if (result?.id) {
+        setFeedIds((prev) => [result.id, ...prev]);
+        setCurrentIndex(0);
+      }
     } catch {}
     setAdding(false);
   }
 
-  if (configured === null || (configured && loading && articles.length === 0)) {
+  if (configured === null || loading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={colors.accent} />
@@ -222,143 +304,227 @@ export default function FeedScreen() {
     );
   }
 
-  const filters: { key: Filter; label: string }[] = [
-    { key: "unread", label: "unread" },
-    { key: "read", label: "read" },
-    { key: "all", label: "all" },
-  ];
+  if (empty) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyTitle}>nothing here yet</Text>
+          <Text style={styles.emptySubtitle}>
+            articles you don't finish reading will appear here
+          </Text>
+          <Pressable
+            style={styles.emptyAddBtn}
+            onPress={() => setShowAdd(true)}
+          >
+            <Text style={styles.emptyAddText}>+ add an article</Text>
+          </Pressable>
+          {showAdd && (
+            <View style={styles.emptyAddBar}>
+              <TextInput
+                style={styles.addInput}
+                value={addUrl}
+                onChangeText={setAddUrl}
+                placeholder="paste a url..."
+                placeholderTextColor={colors.textTertiary}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                onSubmitEditing={handleAdd}
+                autoFocus
+              />
+              <Pressable
+                style={styles.addSubmit}
+                onPress={handleAdd}
+                disabled={adding}
+              >
+                <Text style={styles.addSubmitText}>
+                  {adding ? "..." : "add"}
+                </Text>
+              </Pressable>
+            </View>
+          )}
+          <Pressable
+            style={styles.settingsLink}
+            onPress={() => router.push("/settings")}
+          >
+            <Text style={styles.settingsLinkText}>settings</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const isTweet = article?.source_type === "tweet";
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>catchup</Text>
-        <View style={styles.headerRight}>
-          {filters.map((f) => (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        {/* Minimal top bar */}
+        <View style={styles.topBar}>
+          <Text style={styles.counter}>
+            {currentIndex + 1}/{feedIds.length}
+          </Text>
+          <View style={styles.topActions}>
             <Pressable
-              key={f.key}
-              onPress={() => setFilter(f.key)}
-              style={[
-                styles.filterBtn,
-                filter === f.key && styles.filterBtnActive,
-              ]}
+              onPress={() => setShowAdd(!showAdd)}
+              style={styles.topBtn}
             >
-              <Text
-                style={[
-                  styles.filterText,
-                  filter === f.key && styles.filterTextActive,
-                ]}
-              >
-                {f.label}
+              <Text style={styles.topBtnText}>+</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => router.push("/settings")}
+              style={styles.topBtn}
+            >
+              <Text style={styles.topBtnText}>{"⚙"}</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {showAdd && (
+          <View style={styles.addBar}>
+            <TextInput
+              style={styles.addInput}
+              value={addUrl}
+              onChangeText={setAddUrl}
+              placeholder="paste a url..."
+              placeholderTextColor={colors.textTertiary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              onSubmitEditing={handleAdd}
+              autoFocus
+            />
+            <Pressable
+              style={styles.addSubmit}
+              onPress={handleAdd}
+              disabled={adding}
+            >
+              <Text style={styles.addSubmitText}>
+                {adding ? "..." : "add"}
               </Text>
             </Pressable>
-          ))}
-          <Pressable
-            onPress={() => setShowAdd(!showAdd)}
-            style={styles.addBtn}
-          >
-            <Text style={styles.addBtnText}>+</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => router.push("/settings")}
-            style={styles.addBtn}
-          >
-            <Text style={styles.addBtnText}>⚙</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      {/* Add URL bar */}
-      {showAdd ? (
-        <View style={styles.addBar}>
-          <TextInput
-            style={styles.addInput}
-            value={addUrl}
-            onChangeText={setAddUrl}
-            placeholder="paste a url..."
-            placeholderTextColor={colors.textTertiary}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            onSubmitEditing={handleAdd}
-            autoFocus
-          />
-          <Pressable
-            style={styles.addSubmit}
-            onPress={handleAdd}
-            disabled={adding}
-          >
-            <Text style={styles.addSubmitText}>
-              {adding ? "..." : "add"}
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      {/* Feed */}
-      <FlatList
-        data={articles}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.list}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.accent}
-          />
-        }
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>nothing here yet</Text>
-            <Text style={styles.emptySubtitle}>
-              articles you don't finish reading will appear here
-            </Text>
           </View>
-        }
-        renderItem={({ item, index }) =>
-          index === 0 && item.lead_image_url ? (
-            <HeroCard
-              article={item}
-              onPress={() =>
-                router.push({
-                  pathname: "/read/[id]",
-                  params: { id: item.id.toString() },
-                })
-              }
-            />
-          ) : (
-            <ArticleCard
-              article={item}
-              onPress={() =>
-                router.push({
-                  pathname: "/read/[id]",
-                  params: { id: item.id.toString() },
-                })
-              }
-            />
-          )
-        }
-        ListFooterComponent={
-          suggestions.length > 0 ? (
-            <View style={styles.suggestionsSection}>
-              <Text style={styles.sectionLabel}>FROM SOURCES YOU READ</Text>
-              {suggestions.map((item) => (
-                <ArticleCard
-                  key={item.id}
-                  article={item}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/read/[id]",
-                      params: { id: item.id.toString() },
-                    })
-                  }
-                />
-              ))}
-            </View>
-          ) : null
-        }
-      />
-    </SafeAreaView>
+        )}
+
+        {loadingArticle && !article ? (
+          <View style={styles.center}>
+            <ActivityIndicator color={colors.accent} />
+          </View>
+        ) : article ? (
+          <GestureDetector gesture={gesture}>
+            <Animated.View style={[{ flex: 1 }, animatedStyle]}>
+              <ScrollView
+                ref={scrollRef}
+                style={styles.scroll}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Swipe hint */}
+                <Text style={styles.swipeHint}>
+                  {hasPrev ? "← prev" : ""}
+                  {hasPrev && hasNext ? "  ·  " : ""}
+                  {hasNext ? "swipe to skip →" : ""}
+                  {"  ·  double-tap to save interest"}
+                </Text>
+
+                {/* Article header */}
+                <View style={styles.articleHeader}>
+                  <View style={styles.metaRow}>
+                    {article.site_name ? (
+                      <Text style={styles.siteName}>{article.site_name}</Text>
+                    ) : null}
+                    {article.published_date ? (
+                      <>
+                        <Text style={styles.metaDot}>{"·"}</Text>
+                        <Text style={styles.metaDate}>
+                          {formatDate(article.published_date)}
+                        </Text>
+                      </>
+                    ) : null}
+                  </View>
+
+                  <Text style={styles.title}>{article.title}</Text>
+
+                  {article.excerpt && !isTweet ? (
+                    <Text style={styles.excerpt}>{article.excerpt}</Text>
+                  ) : null}
+
+                  <View style={styles.metaRow}>
+                    {article.author ? (
+                      <Text style={styles.author}>{article.author}</Text>
+                    ) : null}
+                    {article.word_count > 0 ? (
+                      <Text style={styles.readTime}>
+                        {readingTime(article.word_count)}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+
+                {/* Lead image */}
+                {article.lead_image_url && !isTweet ? (
+                  <Image
+                    source={{ uri: article.lead_image_url }}
+                    style={styles.leadImage}
+                    resizeMode="cover"
+                  />
+                ) : null}
+
+                {/* Content */}
+                {isTweet ? (
+                  <View style={styles.tweetBox}>
+                    <Text style={styles.tweetContent}>
+                      {article.text_content || article.content}
+                    </Text>
+                    {article.lead_image_url ? (
+                      <Image
+                        source={{ uri: article.lead_image_url }}
+                        style={styles.tweetImage}
+                        resizeMode="cover"
+                      />
+                    ) : null}
+                  </View>
+                ) : segments.length > 0 ? (
+                  <View style={styles.segmentList}>
+                    {segments.map((seg) => (
+                      <TappableParagraph
+                        key={seg.index}
+                        segment={seg}
+                        articleId={article.id}
+                        isTapped={tappedParagraphs.has(seg.index)}
+                        contentWidth={contentWidth}
+                      />
+                    ))}
+                  </View>
+                ) : article.content ? (
+                  <RenderHtml
+                    contentWidth={contentWidth}
+                    source={{ html: article.content }}
+                    tagsStyles={baseTagsStyles}
+                    defaultTextProps={{ selectable: true }}
+                  />
+                ) : (
+                  <Text style={styles.plainText}>
+                    {article.text_content}
+                  </Text>
+                )}
+
+                {/* Next article teaser */}
+                {hasNext ? (
+                  <Pressable style={styles.nextTeaser} onPress={goNext}>
+                    <Text style={styles.nextLabel}>SWIPE FOR NEXT</Text>
+                  </Pressable>
+                ) : (
+                  <View style={styles.endTeaser}>
+                    <Text style={styles.endText}>you're all caught up</Text>
+                  </View>
+                )}
+              </ScrollView>
+            </Animated.View>
+          </GestureDetector>
+        ) : null}
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
@@ -370,46 +536,28 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  header: {
+  topBar: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
+    height: 40,
   },
-  headerTitle: {
-    fontFamily: "System",
-    fontSize: 20,
-    color: colors.text,
+  counter: {
+    fontSize: 11,
+    fontFamily: "Courier",
+    color: colors.textTertiary,
   },
-  headerRight: {
+  topActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
   },
-  filterBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  filterBtnActive: {
-    backgroundColor: colors.bgActive,
-  },
-  filterText: {
-    fontSize: 12,
-    fontFamily: "Courier",
-    color: colors.textTertiary,
-  },
-  filterTextActive: {
-    color: colors.text,
-  },
-  addBtn: {
+  topBtn: {
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
-  addBtnText: {
+  topBtnText: {
     fontSize: 18,
     color: colors.textTertiary,
   },
@@ -445,113 +593,151 @@ const styles = StyleSheet.create({
     fontFamily: "Courier",
     color: colors.textSecondary,
   },
-  list: {
-    padding: spacing.md,
-    gap: 12,
+  swipeHint: {
+    fontSize: 11,
+    fontFamily: "Courier",
+    color: colors.textTertiary,
+    opacity: 0.5,
+    textAlign: "center",
+    marginBottom: spacing.md,
   },
-  heroCard: {
-    backgroundColor: colors.bgRaised,
-    borderRadius: 14,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
+  scroll: { flex: 1 },
+  scrollContent: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: 80,
+    paddingTop: spacing.sm,
   },
-  heroImage: {
-    width: "100%",
-    height: 180,
-  },
-  heroContent: {
-    padding: spacing.md,
-    gap: 8,
-  },
-  heroTitle: {
-    fontFamily: "System",
-    fontSize: 22,
-    lineHeight: 28,
-    color: colors.text,
-  },
-  heroExcerpt: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textSecondary,
-  },
-  card: {
-    backgroundColor: colors.bgRaised,
-    borderRadius: 14,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-  },
-  cardRow: {
-    flexDirection: "row",
-  },
-  cardTextArea: {
-    flex: 1,
-    padding: spacing.md,
-    gap: 6,
-  },
-  cardTitle: {
-    fontFamily: "System",
-    fontSize: 17,
-    lineHeight: 22,
-    color: colors.text,
-  },
-  cardExcerpt: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textSecondary,
-  },
-  cardThumb: {
-    width: 100,
-    alignSelf: "stretch",
-  },
-  cardInner: {
-    padding: spacing.md,
-    gap: 8,
-  },
-  tweetText: {
-    fontFamily: "System",
-    fontSize: 16,
-    lineHeight: 24,
-    color: colors.text,
+  articleHeader: {
+    marginBottom: 24,
+    gap: 10,
   },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
     flexWrap: "wrap",
   },
-  metaSite: {
-    fontSize: 11,
+  siteName: {
+    fontSize: 12,
     fontFamily: "Courier",
-    color: colors.textTertiary,
+    color: colors.accent,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   },
-  metaDot: {
-    fontSize: 11,
-    color: colors.textTertiary,
-  },
-  metaTime: {
-    fontSize: 11,
+  metaDot: { color: colors.textTertiary, fontSize: 12 },
+  metaDate: {
+    fontSize: 12,
     fontFamily: "Courier",
     color: colors.textTertiary,
   },
-  metaCapture: {
-    fontSize: 10,
+  title: {
+    fontFamily: "System",
+    fontSize: 28,
+    lineHeight: 36,
+    color: colors.text,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
+  excerpt: {
+    fontFamily: "System",
+    fontSize: 18,
+    lineHeight: 26,
+    color: colors.textSecondary,
+  },
+  author: {
+    fontSize: 12,
     fontFamily: "Courier",
     color: colors.textTertiary,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
-  metaAuthor: {
-    fontSize: 11,
+  readTime: {
+    fontSize: 12,
     fontFamily: "Courier",
     color: colors.textTertiary,
   },
-  empty: {
-    paddingVertical: 80,
+  leadImage: {
+    width: "100%",
+    height: 220,
+    borderRadius: 12,
+    marginBottom: 28,
+  },
+  segmentList: {
+    gap: 4,
+  },
+  paragraph: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    position: "relative",
+  },
+  tappedIndicator: {
+    position: "absolute",
+    left: -8,
+    top: 12,
+    bottom: 12,
+    width: 3,
+    justifyContent: "center",
+  },
+  tappedDot: {
+    width: 3,
+    height: "100%",
+    backgroundColor: colors.accent,
+    borderRadius: 1.5,
+    opacity: 0.6,
+  },
+  tweetBox: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    padding: 20,
+    gap: 16,
+  },
+  tweetContent: {
+    fontFamily: "System",
+    fontSize: 20,
+    lineHeight: 30,
+    color: colors.text,
+  },
+  tweetImage: {
+    width: "100%",
+    height: 200,
+    borderRadius: 10,
+  },
+  plainText: {
+    fontFamily: "System",
+    fontSize: 18,
+    lineHeight: 32,
+    color: colors.text,
+  },
+  nextTeaser: {
+    marginTop: 40,
+    paddingVertical: 24,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
     alignItems: "center",
+  },
+  nextLabel: {
+    fontSize: 11,
+    fontFamily: "Courier",
+    color: colors.textTertiary,
+    letterSpacing: 1.5,
+  },
+  endTeaser: {
+    marginTop: 40,
+    paddingVertical: 24,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+    alignItems: "center",
+  },
+  endText: {
+    fontFamily: "System",
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: spacing.lg,
   },
   emptyTitle: {
     fontFamily: "System",
@@ -563,16 +749,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textTertiary,
     textAlign: "center",
+    marginBottom: 24,
   },
-  suggestionsSection: {
-    marginTop: 24,
-    gap: 12,
+  emptyAddBtn: {
+    backgroundColor: colors.bgRaised,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    marginBottom: 16,
   },
-  sectionLabel: {
-    fontSize: 11,
+  emptyAddText: {
+    fontSize: 14,
+    fontFamily: "Courier",
+    color: colors.textSecondary,
+  },
+  emptyAddBar: {
+    flexDirection: "row",
+    width: "100%",
+    gap: spacing.sm,
+    marginBottom: 16,
+  },
+  settingsLink: {
+    paddingVertical: 8,
+  },
+  settingsLinkText: {
+    fontSize: 12,
     fontFamily: "Courier",
     color: colors.textTertiary,
-    letterSpacing: 1.5,
-    marginBottom: 4,
   },
 });

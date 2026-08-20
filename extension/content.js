@@ -2,29 +2,40 @@
   if (window.__catchupContentLoaded) return;
   window.__catchupContentLoaded = true;
 
-  const ARTICLE_MIN_TEXT_LENGTH = 500;
+  const MIN_WORD_COUNT = 200;
+  const MIN_PARAGRAPH_COUNT = 3;
 
   function isArticlePage() {
-    const article = document.querySelector("article");
-    if (article) return true;
+    const path = window.location.pathname;
+    if (path === "/" || path === "" || path === "/index.html") return false;
 
-    const mainContent =
-      document.querySelector("main") ||
-      document.querySelector('[role="main"]') ||
-      document.querySelector(".post-content, .article-content, .entry-content");
-    if (mainContent) {
-      const text = mainContent.textContent || "";
-      if (text.length > ARTICLE_MIN_TEXT_LENGTH) return true;
+    if (/^\/(search|login|signup|register|cart|checkout|account|settings|auth|oauth)/i.test(path)) return false;
+
+    const articleEl = document.querySelector("article");
+    const contentEl =
+      document.querySelector(".post-content, .article-content, .entry-content, .post-body") ||
+      document.querySelector('[itemprop="articleBody"]');
+
+    const target = contentEl || articleEl;
+    if (!target) {
+      const paragraphs = document.querySelectorAll("p");
+      if (paragraphs.length < MIN_PARAGRAPH_COUNT) return false;
+      let wordCount = 0;
+      for (const p of paragraphs) {
+        wordCount += (p.textContent || "").split(/\s+/).filter(Boolean).length;
+        if (wordCount >= MIN_WORD_COUNT) return true;
+      }
+      return false;
     }
 
-    const paragraphs = document.querySelectorAll("p");
-    let totalText = 0;
-    for (const p of paragraphs) {
-      totalText += (p.textContent || "").length;
-      if (totalText > ARTICLE_MIN_TEXT_LENGTH) return true;
-    }
+    const text = target.textContent || "";
+    const words = text.split(/\s+/).filter(Boolean).length;
+    if (words < MIN_WORD_COUNT) return false;
 
-    return false;
+    const paragraphs = target.querySelectorAll("p");
+    if (paragraphs.length < MIN_PARAGRAPH_COUNT) return false;
+
+    return true;
   }
 
   function extractArticle() {

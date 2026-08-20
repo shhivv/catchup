@@ -19,6 +19,27 @@ const EXCLUDED_DOMAINS = [
   "figma.com",
   "notion.so",
   "linear.app",
+  "twitter.com",
+  "x.com",
+  "facebook.com",
+  "instagram.com",
+  "reddit.com",
+  "linkedin.com",
+  "amazon.com",
+  "ebay.com",
+  "netflix.com",
+  "spotify.com",
+  "stackoverflow.com",
+  "chatgpt.com",
+  "claude.ai",
+  "maps.google.com",
+  "web.whatsapp.com",
+  "outlook.com",
+  "office.com",
+  "zoom.us",
+  "vercel.app",
+  "netlify.app",
+  "127.0.0.1",
 ];
 
 function isTrackablePage(url) {
@@ -52,6 +73,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   delete TAB_TRACKING[tabId];
 
   if (!tracked.isArticle || !tracked.articleData) return;
+  if ((tracked.articleData.wordCount || 0) < 200) return;
 
   const timeSpent = (Date.now() - tracked.openedAt) / 1000;
   const didNotFinish =
