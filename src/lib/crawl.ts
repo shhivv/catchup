@@ -417,9 +417,9 @@ export async function seedInitialFeed(): Promise<{ stored: number }> {
   const db = getDb();
 
   const count = (
-    db.prepare("SELECT COUNT(*) as c FROM articles").get() as { c: number }
+    db.prepare("SELECT COUNT(*) as c FROM articles WHERE word_count > 200").get() as { c: number }
   ).c;
-  if (count > 0) return { stored: 0 };
+  if (count >= 20) return { stored: 0 };
 
   let stored = 0;
   const maxPerFeed = 5;
