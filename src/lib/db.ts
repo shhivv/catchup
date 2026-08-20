@@ -66,6 +66,15 @@ function migrate(db: Database.Database) {
 
     CREATE INDEX IF NOT EXISTS idx_interests_created ON interests(created_at DESC);
   `);
+
+  const cols = db.prepare("PRAGMA table_info(articles)").all() as { name: string }[];
+  const colNames = new Set(cols.map((c) => c.name));
+  if (!colNames.has("relevance_score")) {
+    db.exec("ALTER TABLE articles ADD COLUMN relevance_score REAL DEFAULT 0");
+  }
+  if (!colNames.has("discovered_from")) {
+    db.exec("ALTER TABLE articles ADD COLUMN discovered_from TEXT DEFAULT ''");
+  }
 }
 
 export interface Article {

@@ -71,13 +71,32 @@ export async function GET(request: Request) {
   const offset = (page - 1) * limit;
   const articles = ranked.slice(offset, offset + limit);
 
-  const suggestions = db
+  let suggestions = db
     .prepare(
       `SELECT * FROM articles
        WHERE capture_method = 'suggested' AND is_read = 0 AND is_archived = 0
-       ORDER BY created_at DESC LIMIT 5`
+         AND word_count > 0
+       ORDER BY relevance_score DESC, created_at DESC
+       LIMIT 10`
     )
-    .all() as Article[];
+    .all() as (Article & { relevance_score: number })[];
+
+  if (interests.length > 0) {
+    const allKw2 = interests.map((i) => {
+      try { return JSON.parse(i.keywords); } catch { return []; }
+    });
+    const prof = buildProfile(allKw2);
+    for (const s of suggestions) {
+      s.relevance_score = scoreArticle(
+        s.text_content || s.excerpt || s.title,
+        prof
+      );
+    }
+    suggestions.sort((a, b) => b.relevance_score - a.relevance_score);
+    suggestions = suggestions.slice(0, 5);
+  } else {
+    suggestions = suggestions.slice(0, 5);
+  }
 
   return NextResponse.json({
     articles,

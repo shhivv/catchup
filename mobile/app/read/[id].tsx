@@ -55,7 +55,7 @@ function readingTime(wordCount: number): string {
 const baseTagsStyles = {
   body: {
     color: colors.text,
-    fontFamily: "Georgia",
+    fontFamily: "System",
     fontSize: 18,
     lineHeight: 32,
   },
@@ -232,7 +232,7 @@ export default function ReaderScreen() {
       <View style={styles.center}>
         <Text
           style={{
-            fontFamily: "Georgia",
+            fontFamily: "System",
             fontSize: 18,
             color: colors.textSecondary,
           }}
@@ -457,14 +457,14 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
   },
   title: {
-    fontFamily: "Georgia",
+    fontFamily: "System",
     fontSize: 28,
     lineHeight: 36,
     color: colors.text,
     letterSpacing: -0.3,
   },
   excerpt: {
-    fontFamily: "Georgia",
+    fontFamily: "System",
     fontSize: 18,
     lineHeight: 26,
     color: colors.textSecondary,
@@ -517,7 +517,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   tweetContent: {
-    fontFamily: "Georgia",
+    fontFamily: "System",
     fontSize: 20,
     lineHeight: 30,
     color: colors.text,
@@ -528,7 +528,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   plainText: {
-    fontFamily: "Georgia",
+    fontFamily: "System",
     fontSize: 18,
     lineHeight: 32,
     color: colors.text,
@@ -547,7 +547,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   nextTitle: {
-    fontFamily: "Georgia",
+    fontFamily: "System",
     fontSize: 20,
     lineHeight: 26,
     color: colors.text,

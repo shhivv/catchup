@@ -1,22 +1,16 @@
-import * as SecureStore from "expo-secure-store";
-
-const SERVER_URL_KEY = "catchup_server_url";
-const API_KEY_KEY = "catchup_api_key";
+const DEFAULT_SERVER_URL = "https://catchup.shivshanmugam.com";
+const DEFAULT_API_KEY = "8c723846e9d7ded08fa69366f01862c1";
 
 export async function getConfig() {
-  const serverUrl = await SecureStore.getItemAsync(SERVER_URL_KEY);
-  const apiKey = await SecureStore.getItemAsync(API_KEY_KEY);
-  return { serverUrl, apiKey };
+  return { serverUrl: DEFAULT_SERVER_URL, apiKey: DEFAULT_API_KEY };
 }
 
-export async function saveConfig(serverUrl: string, apiKey: string) {
-  await SecureStore.setItemAsync(SERVER_URL_KEY, serverUrl);
-  await SecureStore.setItemAsync(API_KEY_KEY, apiKey);
+export async function saveConfig(_serverUrl: string, _apiKey: string) {
+  // hardcoded for now
 }
 
 export async function isConfigured(): Promise<boolean> {
-  const { serverUrl, apiKey } = await getConfig();
-  return !!(serverUrl && apiKey);
+  return true;
 }
 
 async function apiFetch(path: string, options: RequestInit = {}) {

@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.borderSubtle,
   },
   headerTitle: {
-    fontFamily: "Georgia",
+    fontFamily: "System",
     fontSize: 20,
     color: colors.text,
   },
@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   heroTitle: {
-    fontFamily: "Georgia",
+    fontFamily: "System",
     fontSize: 22,
     lineHeight: 28,
     color: colors.text,
@@ -491,7 +491,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   cardTitle: {
-    fontFamily: "Georgia",
+    fontFamily: "System",
     fontSize: 17,
     lineHeight: 22,
     color: colors.text,
@@ -510,7 +510,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   tweetText: {
-    fontFamily: "Georgia",
+    fontFamily: "System",
     fontSize: 16,
     lineHeight: 24,
     color: colors.text,
@@ -554,7 +554,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   emptyTitle: {
-    fontFamily: "Georgia",
+    fontFamily: "System",
     fontSize: 20,
     color: colors.textSecondary,
     marginBottom: 8,
