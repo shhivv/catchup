@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { verifySession } from "@/lib/auth";
+import { verifyRequest } from "@/lib/auth";
 import { getDb, Article } from "@/lib/db";
 
 export async function GET(request: Request) {
-  if (!(await verifySession())) {
+  if (!verifyRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
   const db = getDb();
 
-  let where = "is_archived = 0";
+  let where = "is_archived = 0 AND capture_method != 'suggested'";
   if (filter === "unread") where += " AND is_read = 0";
   else if (filter === "read") where += " AND is_read = 1";
 

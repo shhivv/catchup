@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { verifySession } from "@/lib/auth";
+import { verifyRequest } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { downloadAndStoreImage, processContentImages } from "@/lib/images";
 import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
 
 export async function POST(request: Request) {
-  if (!(await verifySession())) {
+  if (!verifyRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

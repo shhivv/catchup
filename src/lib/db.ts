@@ -42,6 +42,18 @@ function migrate(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_articles_created ON articles(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_articles_read ON articles(is_read);
     CREATE INDEX IF NOT EXISTS idx_articles_source ON articles(source_type);
+    CREATE INDEX IF NOT EXISTS idx_articles_capture ON articles(capture_method);
+
+    CREATE TABLE IF NOT EXISTS feeds (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      url TEXT UNIQUE,
+      site_url TEXT,
+      site_name TEXT,
+      feed_type TEXT DEFAULT 'rss',
+      last_fetched TEXT,
+      article_count INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
   `);
 }
 
