@@ -99,3 +99,20 @@ export async function getSuggestions(limit = 10) {
 export async function discoverFeeds() {
   return apiFetch("/api/discover", { method: "POST" });
 }
+
+export async function recordInterest(
+  articleId: number,
+  paragraphIndex: number,
+  paragraphText: string
+) {
+  return apiFetch("/api/interests", {
+    method: "POST",
+    body: JSON.stringify({ articleId, paragraphIndex, paragraphText }),
+  });
+}
+
+export interface Segment {
+  html: string;
+  text: string;
+  index: number;
+}

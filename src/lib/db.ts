@@ -54,6 +54,17 @@ function migrate(db: Database.Database) {
       article_count INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS interests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      article_id INTEGER REFERENCES articles(id),
+      paragraph_index INTEGER,
+      paragraph_text TEXT,
+      keywords TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_interests_created ON interests(created_at DESC);
   `);
 }
 

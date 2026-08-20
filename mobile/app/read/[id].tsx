@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   Pressable,
   Image,
   StyleSheet,
-  Dimensions,
   ActivityIndicator,
   useWindowDimensions,
 } from "react-native";
@@ -21,17 +20,20 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
+  withTiming,
   runOnJS,
 } from "react-native-reanimated";
+import RenderHtml from "react-native-render-html";
 import {
   getArticle,
   getFeed,
   markRead,
   archiveArticle,
+  recordInterest,
   Article,
+  Segment,
 } from "../../lib/api";
 import { colors, spacing } from "../../lib/theme";
-import RenderHtml from "react-native-render-html";
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return "";
@@ -50,12 +52,100 @@ function readingTime(wordCount: number): string {
   return `${Math.max(1, Math.round(wordCount / 238))} min read`;
 }
 
+const baseTagsStyles = {
+  body: {
+    color: colors.text,
+    fontFamily: "Georgia",
+    fontSize: 18,
+    lineHeight: 32,
+  },
+  p: { marginBottom: 0, marginTop: 0 },
+  a: { color: colors.accent, textDecorationLine: "underline" as const },
+  h1: { fontFamily: "System", fontWeight: "600" as const, fontSize: 24, color: colors.text },
+  h2: { fontFamily: "System", fontWeight: "600" as const, fontSize: 20, color: colors.text },
+  h3: { fontFamily: "System", fontWeight: "600" as const, fontSize: 18, color: colors.text },
+  blockquote: {
+    borderLeftWidth: 2,
+    borderLeftColor: colors.accent,
+    paddingLeft: 16,
+    fontStyle: "italic" as const,
+    color: colors.textSecondary,
+  },
+  img: { borderRadius: 10 },
+  pre: {
+    backgroundColor: colors.bgRaised,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    padding: 12,
+  },
+  code: { fontFamily: "Courier", fontSize: 14, backgroundColor: colors.bgRaised },
+  li: { color: colors.text },
+};
+
+function TappableParagraph({
+  segment,
+  articleId,
+  isTapped,
+  contentWidth,
+}: {
+  segment: Segment;
+  articleId: number;
+  isTapped: boolean;
+  contentWidth: number;
+}) {
+  const [tapped, setTapped] = useState(isTapped);
+  const bgOpacity = useSharedValue(isTapped ? 0.08 : 0);
+  const lastTap = useRef(0);
+
+  const animatedBg = useAnimatedStyle(() => ({
+    backgroundColor: `rgba(201, 168, 124, ${bgOpacity.value})`,
+  }));
+
+  function handlePress() {
+    const now = Date.now();
+    if (now - lastTap.current < 350) {
+      if (!tapped) {
+        setTapped(true);
+        bgOpacity.value = withTiming(0.15, { duration: 200 });
+        setTimeout(() => {
+          bgOpacity.value = withTiming(0.08, { duration: 400 });
+        }, 600);
+        recordInterest(articleId, segment.index, segment.text).catch(() => {});
+      }
+    }
+    lastTap.current = now;
+  }
+
+  return (
+    <Pressable onPress={handlePress}>
+      <Animated.View style={[styles.paragraph, animatedBg]}>
+        <RenderHtml
+          contentWidth={contentWidth}
+          source={{ html: segment.html }}
+          tagsStyles={baseTagsStyles}
+          defaultTextProps={{ selectable: true }}
+        />
+        {tapped && (
+          <View style={styles.tappedIndicator}>
+            <View style={styles.tappedDot} />
+          </View>
+        )}
+      </Animated.View>
+    </Pressable>
+  );
+}
+
 export default function ReaderScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { width } = useWindowDimensions();
 
   const [article, setArticle] = useState<Article | null>(null);
+  const [segments, setSegments] = useState<Segment[]>([]);
+  const [tappedParagraphs, setTappedParagraphs] = useState<Set<number>>(
+    new Set()
+  );
   const [loading, setLoading] = useState(true);
   const [feedIds, setFeedIds] = useState<{ id: number; title: string }[]>([]);
 
@@ -70,6 +160,8 @@ export default function ReaderScreen() {
           getFeed("unread", 1, 100),
         ]);
         setArticle(art);
+        setSegments(art.segments || []);
+        setTappedParagraphs(new Set(art.tappedParagraphs || []));
         setFeedIds(
           feed.articles.map((a: Article) => ({ id: a.id, title: a.title }))
         );
@@ -125,78 +217,7 @@ export default function ReaderScreen() {
     transform: [{ translateX: translateX.value }],
   }));
 
-  const htmlSource = article?.content
-    ? { html: article.content }
-    : undefined;
-
-  const tagsStyles = {
-    body: {
-      color: colors.text,
-      fontFamily: "Georgia",
-      fontSize: 18,
-      lineHeight: 32,
-    },
-    p: { marginBottom: 20 },
-    a: {
-      color: colors.accent,
-      textDecorationLine: "underline" as const,
-    },
-    h1: {
-      fontFamily: "System",
-      fontWeight: "600" as const,
-      fontSize: 24,
-      marginTop: 28,
-      marginBottom: 12,
-      color: colors.text,
-    },
-    h2: {
-      fontFamily: "System",
-      fontWeight: "600" as const,
-      fontSize: 20,
-      marginTop: 24,
-      marginBottom: 10,
-      color: colors.text,
-    },
-    h3: {
-      fontFamily: "System",
-      fontWeight: "600" as const,
-      fontSize: 18,
-      marginTop: 20,
-      marginBottom: 8,
-      color: colors.text,
-    },
-    blockquote: {
-      borderLeftWidth: 2,
-      borderLeftColor: colors.accent,
-      paddingLeft: 16,
-      marginVertical: 16,
-      fontStyle: "italic" as const,
-      color: colors.textSecondary,
-    },
-    img: {
-      borderRadius: 10,
-      marginVertical: 16,
-    },
-    pre: {
-      backgroundColor: colors.bgRaised,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 8,
-      padding: 12,
-    },
-    code: {
-      fontFamily: "Courier",
-      fontSize: 14,
-      backgroundColor: colors.bgRaised,
-    },
-    li: { marginBottom: 8, color: colors.text },
-    figcaption: {
-      textAlign: "center" as const,
-      fontSize: 13,
-      color: colors.textTertiary,
-      marginTop: 6,
-    },
-  };
+  const contentWidth = width - spacing.lg * 2;
 
   if (loading) {
     return (
@@ -209,7 +230,13 @@ export default function ReaderScreen() {
   if (!article) {
     return (
       <View style={styles.center}>
-        <Text style={{ fontFamily: "Georgia", fontSize: 18, color: colors.textSecondary }}>
+        <Text
+          style={{
+            fontFamily: "Georgia",
+            fontSize: 18,
+            color: colors.textSecondary,
+          }}
+        >
           article not found
         </Text>
       </View>
@@ -251,15 +278,6 @@ export default function ReaderScreen() {
           </View>
         </View>
 
-        {/* Swipe hint */}
-        {nextId ? (
-          <View style={styles.swipeHint}>
-            <Text style={styles.swipeHintText}>
-              swipe left to skip · right to go back
-            </Text>
-          </View>
-        ) : null}
-
         <GestureDetector gesture={gesture}>
           <Animated.View style={[{ flex: 1 }, animatedStyle]}>
             <ScrollView
@@ -267,6 +285,13 @@ export default function ReaderScreen() {
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
             >
+              {/* Swipe hint */}
+              {nextId ? (
+                <Text style={styles.swipeHint}>
+                  swipe to skip · double-tap a paragraph to save interest
+                </Text>
+              ) : null}
+
               {/* Article header */}
               <View style={styles.articleHeader}>
                 <View style={styles.metaRow}>
@@ -324,11 +349,23 @@ export default function ReaderScreen() {
                     />
                   ) : null}
                 </View>
-              ) : htmlSource ? (
+              ) : segments.length > 0 ? (
+                <View style={styles.segmentList}>
+                  {segments.map((seg) => (
+                    <TappableParagraph
+                      key={seg.index}
+                      segment={seg}
+                      articleId={article.id}
+                      isTapped={tappedParagraphs.has(seg.index)}
+                      contentWidth={contentWidth}
+                    />
+                  ))}
+                </View>
+              ) : article.content ? (
                 <RenderHtml
-                  contentWidth={width - spacing.lg * 2}
-                  source={htmlSource}
-                  tagsStyles={tagsStyles}
+                  contentWidth={contentWidth}
+                  source={{ html: article.content }}
+                  tagsStyles={baseTagsStyles}
                   defaultTextProps={{ selectable: true }}
                 />
               ) : (
@@ -383,19 +420,18 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
   },
   swipeHint: {
-    alignItems: "center",
-    paddingBottom: 8,
-  },
-  swipeHintText: {
     fontSize: 11,
     fontFamily: "Courier",
     color: colors.textTertiary,
-    opacity: 0.6,
+    opacity: 0.5,
+    textAlign: "center",
+    marginBottom: spacing.md,
   },
   scroll: { flex: 1 },
   scrollContent: {
     paddingHorizontal: spacing.lg,
     paddingBottom: 80,
+    paddingTop: spacing.sm,
   },
   articleHeader: {
     marginBottom: 24,
@@ -448,6 +484,30 @@ const styles = StyleSheet.create({
     height: 220,
     borderRadius: 12,
     marginBottom: 28,
+  },
+  segmentList: {
+    gap: 4,
+  },
+  paragraph: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    position: "relative",
+  },
+  tappedIndicator: {
+    position: "absolute",
+    left: -8,
+    top: 12,
+    bottom: 12,
+    width: 3,
+    justifyContent: "center",
+  },
+  tappedDot: {
+    width: 3,
+    height: "100%",
+    backgroundColor: colors.accent,
+    borderRadius: 1.5,
+    opacity: 0.6,
   },
   tweetBox: {
     borderWidth: 1,

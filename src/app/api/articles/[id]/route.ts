@@ -4,6 +4,7 @@ import { getDb, Article } from "@/lib/db";
 import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
 import { downloadAndStoreImage, processContentImages } from "@/lib/images";
+import { segmentHtml } from "@/lib/tfidf";
 
 async function scrapeFullContent(article: Article): Promise<Article> {
   try {
@@ -86,7 +87,18 @@ export async function GET(
     article = await scrapeFullContent(article);
   }
 
-  return NextResponse.json(article);
+  const segments = article.content ? segmentHtml(article.content) : [];
+
+  const tappedParagraphs = db
+    .prepare("SELECT paragraph_index FROM interests WHERE article_id = ?")
+    .all(parseInt(id)) as { paragraph_index: number }[];
+  const tappedSet = new Set(tappedParagraphs.map((t) => t.paragraph_index));
+
+  return NextResponse.json({
+    ...article,
+    segments,
+    tappedParagraphs: Array.from(tappedSet),
+  });
 }
 
 export async function PATCH(

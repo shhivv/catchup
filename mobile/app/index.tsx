@@ -163,6 +163,7 @@ function ArticleCard({
 
 export default function FeedScreen() {
   const [articles, setArticles] = useState<Article[]>([]);
+  const [suggestions, setSuggestions] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<Filter>("unread");
@@ -183,9 +184,8 @@ export default function FeedScreen() {
     try {
       const data = await getFeed(filter);
       setArticles(data.articles);
-    } catch {
-      // silently fail
-    }
+      if (data.suggestions) setSuggestions(data.suggestions);
+    } catch {}
     setLoading(false);
   }, [filter]);
 
@@ -337,6 +337,25 @@ export default function FeedScreen() {
               }
             />
           )
+        }
+        ListFooterComponent={
+          suggestions.length > 0 ? (
+            <View style={styles.suggestionsSection}>
+              <Text style={styles.sectionLabel}>FROM SOURCES YOU READ</Text>
+              {suggestions.map((item) => (
+                <ArticleCard
+                  key={item.id}
+                  article={item}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/read/[id]",
+                      params: { id: item.id.toString() },
+                    })
+                  }
+                />
+              ))}
+            </View>
+          ) : null
         }
       />
     </SafeAreaView>
@@ -544,5 +563,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textTertiary,
     textAlign: "center",
+  },
+  suggestionsSection: {
+    marginTop: 24,
+    gap: 12,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontFamily: "Courier",
+    color: colors.textTertiary,
+    letterSpacing: 1.5,
+    marginBottom: 4,
   },
 });
