@@ -279,17 +279,33 @@ export default function FeedReaderScreen() {
   }, [currentIndex, feedIds, showArticle]);
 
   const goNext = useCallback(() => {
-    if (currentIndex < feedIds.length - 1) {
-      if (article) archiveArticle(article.id).catch(() => {});
-      setCurrentIndex((i) => i + 1);
+    if (currentIndex >= feedIds.length - 1) return;
+    if (article) archiveArticle(article.id).catch(() => {});
+    const nextId = feedIds[currentIndex + 1];
+    const cached = articleCache.get(nextId);
+    if (cached) {
+      showArticle(cached);
+      markRead(nextId).catch(() => {});
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
     }
-  }, [currentIndex, feedIds.length, article]);
+    setCurrentIndex((i) => i + 1);
+    translateX.value = 0;
+    opacity.value = 1;
+  }, [currentIndex, feedIds, article, showArticle, translateX, opacity]);
 
   const goPrev = useCallback(() => {
-    if (currentIndex > 0) {
-      setCurrentIndex((i) => i - 1);
+    if (currentIndex <= 0) return;
+    const prevId = feedIds[currentIndex - 1];
+    const cached = articleCache.get(prevId);
+    if (cached) {
+      showArticle(cached);
+      markRead(prevId).catch(() => {});
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
     }
-  }, [currentIndex]);
+    setCurrentIndex((i) => i - 1);
+    translateX.value = 0;
+    opacity.value = 1;
+  }, [currentIndex, feedIds, showArticle, translateX, opacity]);
 
   const hasNext = currentIndex < feedIds.length - 1;
   const hasPrev = currentIndex > 0;
@@ -306,18 +322,14 @@ export default function FeedReaderScreen() {
     })
     .onEnd((e) => {
       if (e.translationX < -80 && hasNext) {
-        opacity.value = withTiming(0, { duration: 120 });
-        translateX.value = withTiming(-width * 0.4, { duration: 120 }, () => {
+        opacity.value = withTiming(0, { duration: 100 });
+        translateX.value = withTiming(-width * 0.3, { duration: 100 }, () => {
           runOnJS(goNext)();
-          translateX.value = 0;
-          opacity.value = 1;
         });
       } else if (e.translationX > 80 && hasPrev) {
-        opacity.value = withTiming(0, { duration: 120 });
-        translateX.value = withTiming(width * 0.4, { duration: 120 }, () => {
+        opacity.value = withTiming(0, { duration: 100 });
+        translateX.value = withTiming(width * 0.3, { duration: 100 }, () => {
           runOnJS(goPrev)();
-          translateX.value = 0;
-          opacity.value = 1;
         });
       } else {
         translateX.value = withTiming(0, { duration: 100 });
