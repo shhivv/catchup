@@ -43,6 +43,15 @@ const FEEDS = [
   { name: "Will Larson", feed: "https://lethain.com/feeds/" },
   { name: "Nadia Asparouhova", feed: "https://nadia.xyz/feed.xml" },
   { name: "Dario Amodei", feed: "https://darioamodei.com/rss.xml" },
+  // Economics, political philosophy, liberalism
+  { name: "Marginal Revolution", feed: "https://marginalrevolution.com/feed" },
+  { name: "John Cochrane (Grumpy Economist)", feed: "https://johnhcochrane.blogspot.com/feeds/posts/default?alt=rss" },
+  { name: "Arnold Kling", feed: "https://www.arnoldkling.com/blog/feed/" },
+  { name: "Cafe Hayek", feed: "https://cafehayek.com/feed" },
+  { name: "EconLog", feed: "https://www.econlib.org/feed/" },
+  { name: "Noah Smith (Noahpinion)", feed: "https://www.noahpinion.blog/feed" },
+  { name: "Matt Levine (Money Stuff)", feed: "https://www.bloomberg.com/opinion/authors/ARbTQlRLRjE/matthew-s-levine.rss" },
+  { name: "Mises Institute", feed: "https://mises.org/feed" },
 ];
 
 async function parseFeed(url) {
@@ -162,9 +171,19 @@ async function main() {
       excerpt TEXT, author TEXT, site_name TEXT, published_date TEXT,
       lead_image_url TEXT, word_count INTEGER DEFAULT 0,
       is_read INTEGER DEFAULT 0, is_archived INTEGER DEFAULT 0,
+      is_bookmarked INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS idx_articles_read ON articles(is_read);
+    CREATE INDEX IF NOT EXISTS idx_articles_bookmarked ON articles(is_bookmarked);
+  `);
+
+  const cols = db.prepare("PRAGMA table_info(articles)").all();
+  if (!cols.some((c) => c.name === "is_bookmarked")) {
+    db.exec("ALTER TABLE articles ADD COLUMN is_bookmarked INTEGER DEFAULT 0");
+  }
+
+  db.exec(`
     CREATE TABLE IF NOT EXISTS interests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       article_id INTEGER REFERENCES articles(id),

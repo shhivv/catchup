@@ -58,6 +58,10 @@ export async function PATCH(
     updates.push("is_archived = ?");
     values.push(body.is_archived ? 1 : 0);
   }
+  if (body.is_bookmarked !== undefined) {
+    updates.push("is_bookmarked = ?");
+    values.push(body.is_bookmarked ? 1 : 0);
+  }
 
   if (updates.length === 0) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });

@@ -10,19 +10,25 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "20");
+  const filter = searchParams.get("filter") || "all";
 
   const db = getDb();
 
+  let where = "word_count > 0";
+  if (filter === "bookmarked") {
+    where += " AND is_bookmarked = 1";
+  } else {
+    where += " AND is_archived = 0";
+  }
+
   const total = (
-    db
-      .prepare("SELECT COUNT(*) as c FROM articles WHERE is_archived = 0 AND word_count > 0")
-      .get() as { c: number }
+    db.prepare(`SELECT COUNT(*) as c FROM articles WHERE ${where}`).get() as { c: number }
   ).c;
 
   const offset = (page - 1) * limit;
   const articles = db
     .prepare(
-      `SELECT * FROM articles WHERE is_archived = 0 AND word_count > 0
+      `SELECT * FROM articles WHERE ${where}
        ORDER BY RANDOM() LIMIT ? OFFSET ?`
     )
     .all(limit, offset) as Article[];

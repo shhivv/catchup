@@ -33,6 +33,7 @@ export interface Article {
   word_count: number;
   is_read: number;
   is_archived: number;
+  is_bookmarked: number;
   created_at: string;
 }
 
@@ -59,6 +60,13 @@ export async function archiveArticle(id: number) {
   return apiFetch(`/api/articles/${id}`, {
     method: "PATCH",
     body: JSON.stringify({ is_archived: true }),
+  });
+}
+
+export async function bookmarkArticle(id: number, bookmarked: boolean) {
+  return apiFetch(`/api/articles/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ is_bookmarked: bookmarked }),
   });
 }
 

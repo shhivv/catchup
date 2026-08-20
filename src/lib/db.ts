@@ -30,11 +30,21 @@ function migrate(db: Database.Database) {
       word_count INTEGER DEFAULT 0,
       is_read INTEGER DEFAULT 0,
       is_archived INTEGER DEFAULT 0,
+      is_bookmarked INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
     );
 
     CREATE INDEX IF NOT EXISTS idx_articles_read ON articles(is_read);
+    CREATE INDEX IF NOT EXISTS idx_articles_bookmarked ON articles(is_bookmarked);
+  `);
 
+  // Add is_bookmarked column to existing tables
+  const cols = db.prepare("PRAGMA table_info(articles)").all() as { name: string }[];
+  if (!cols.some((c) => c.name === "is_bookmarked")) {
+    db.exec("ALTER TABLE articles ADD COLUMN is_bookmarked INTEGER DEFAULT 0");
+  }
+
+  db.exec(`
     CREATE TABLE IF NOT EXISTS interests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       article_id INTEGER REFERENCES articles(id),
@@ -60,5 +70,6 @@ export interface Article {
   word_count: number;
   is_read: number;
   is_archived: number;
+  is_bookmarked: number;
   created_at: string;
 }

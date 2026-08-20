@@ -8,6 +8,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   useWindowDimensions,
+  Share,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -28,6 +29,7 @@ import {
   getArticle,
   markRead,
   archiveArticle,
+  bookmarkArticle,
   recordInterest,
   Article,
   Segment,
@@ -196,6 +198,7 @@ export default function FeedReaderScreen() {
   const [tappedParagraphs, setTappedParagraphs] = useState<Set<number>>(
     new Set()
   );
+  const [bookmarked, setBookmarked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [empty, setEmpty] = useState(false);
 
@@ -225,6 +228,7 @@ export default function FeedReaderScreen() {
     setArticle(art);
     setSegments(art.segments || []);
     setTappedParagraphs(new Set(art.tappedParagraphs || []));
+    setBookmarked(!!art.is_bookmarked);
     AsyncStorage.setItem("lastArticleId", String(art.id)).catch(() => {});
   }, []);
 
@@ -310,6 +314,21 @@ export default function FeedReaderScreen() {
     translateX.value = 0;
     opacity.value = 1;
   }, [currentIndex, feedIds, showArticle, translateX, opacity]);
+
+  const toggleBookmark = useCallback(() => {
+    if (!article) return;
+    const next = !bookmarked;
+    setBookmarked(next);
+    bookmarkArticle(article.id, next).catch(() => {});
+  }, [article, bookmarked]);
+
+  const shareArticle = useCallback(() => {
+    if (!article) return;
+    Share.share({
+      message: `${article.title}\n${article.url}`,
+      url: article.url,
+    }).catch(() => {});
+  }, [article]);
 
   const hasNext = currentIndex < feedIds.length - 1;
   const hasPrev = currentIndex > 0;
@@ -405,6 +424,22 @@ export default function FeedReaderScreen() {
                         {readingTime(article.word_count)}
                       </Text>
                     ) : null}
+                    <View style={{ flex: 1 }} />
+                    <Pressable onPress={toggleBookmark} hitSlop={12}>
+                      <Text
+                        style={[
+                          styles.actionIcon,
+                          { opacity: bookmarked ? 1 : 0.35 },
+                        ]}
+                      >
+                        {"\u{1F516}"}
+                      </Text>
+                    </Pressable>
+                    <Pressable onPress={shareArticle} hitSlop={12}>
+                      <Text style={[styles.actionIcon, { opacity: 0.5 }]}>
+                        {"\u{2197}\u{FE0F}"}
+                      </Text>
+                    </Pressable>
                   </View>
                 </View>
 
@@ -511,6 +546,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Courier",
     color: colors.textTertiary,
+  },
+  actionIcon: {
+    fontSize: 16,
   },
   leadImage: {
     width: "100%",
