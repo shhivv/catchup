@@ -1,26 +1,171 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: #141414;
+  --color-bg-raised: #1c1c1c;
+  --color-bg-hover: #242424;
+  --color-bg-active: #2a2a2a;
+  --color-border: #2a2a2a;
+  --color-border-subtle: #222222;
+  --color-text: #e8e4df;
+  --color-text-secondary: #8a8a8a;
+  --color-text-tertiary: #5a5a5a;
+  --color-accent: #c9a87c;
+  --color-accent-hover: #dbbf9a;
   --font-sans: var(--font-geist-sans);
+  --font-serif: var(--font-eb-garamond);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+::selection {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+.article-content {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 1.2rem;
+  line-height: 1.85;
+  letter-spacing: 0.01em;
+}
+
+.article-content p {
+  margin-bottom: 1.5em;
+}
+
+.article-content h1,
+.article-content h2,
+.article-content h3,
+.article-content h4 {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-weight: 600;
+  margin-top: 2em;
+  margin-bottom: 0.8em;
+  color: var(--color-text);
+}
+
+.article-content h1 { font-size: 1.8rem; }
+.article-content h2 { font-size: 1.4rem; }
+.article-content h3 { font-size: 1.2rem; }
+
+.article-content a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  transition: color 0.15s;
+}
+
+.article-content a:hover {
+  color: var(--color-accent-hover);
+}
+
+.article-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 2em auto;
+  display: block;
+}
+
+.article-content blockquote {
+  border-left: 2px solid var(--color-accent);
+  padding-left: 1.2em;
+  margin: 1.5em 0;
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.article-content ul,
+.article-content ol {
+  padding-left: 1.5em;
+  margin-bottom: 1.5em;
+}
+
+.article-content li {
+  margin-bottom: 0.5em;
+}
+
+.article-content pre {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1em;
+  overflow-x: auto;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.85rem;
+  margin: 1.5em 0;
+}
+
+.article-content code {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.85em;
+  background: var(--color-bg);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+}
+
+.article-content pre code {
+  background: none;
+  padding: 0;
+}
+
+.article-content figure {
+  margin: 2em 0;
+}
+
+.article-content figcaption {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--color-text-tertiary);
+  margin-top: 0.5em;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+.article-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5em 0;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 0.9rem;
+}
+
+.article-content th,
+.article-content td {
+  padding: 0.6em 1em;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.article-content th {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+@media (max-width: 640px) {
+  .article-content {
+    font-size: 1.1rem;
+    line-height: 1.8;
+  }
 }
