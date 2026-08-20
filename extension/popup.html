@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 280px;
+      background: #141414;
+      color: #e8e4df;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+    }
+    .header {
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid #2a2a2a;
+    }
+    .header h1 {
+      font-family: Georgia, serif;
+      font-size: 18px;
+      font-weight: 400;
+      letter-spacing: -0.02em;
+    }
+    .header p {
+      color: #5a5a5a;
+      font-size: 11px;
+      margin-top: 2px;
+      font-family: ui-monospace, monospace;
+    }
+    .actions {
+      padding: 12px 16px;
+    }
+    button {
+      width: 100%;
+      padding: 10px 12px;
+      background: #1c1c1c;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      color: #e8e4df;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    button:hover {
+      border-color: #3a3a3a;
+      background: #242424;
+    }
+    button:active {
+      background: #2a2a2a;
+    }
+    button.saving {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    button svg {
+      width: 16px;
+      height: 16px;
+      color: #8a8a8a;
+      flex-shrink: 0;
+    }
+    .status {
+      padding: 0 16px 12px;
+      font-size: 11px;
+      font-family: ui-monospace, monospace;
+    }
+    .status.success { color: #7ec77e; }
+    .status.error { color: #c77e7e; }
+    .status.info { color: #5a5a5a; }
+    .footer {
+      padding: 10px 16px;
+      border-top: 1px solid #2a2a2a;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .footer a {
+      color: #c9a87c;
+      text-decoration: none;
+      font-size: 11px;
+      font-family: ui-monospace, monospace;
+    }
+    .footer a:hover { color: #dbbf9a; }
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #5a5a5a;
+    }
+    .dot.connected { background: #7ec77e; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>catchup</h1>
+    <p id="subtitle">save this page</p>
+  </div>
+  <div class="actions">
+    <button id="saveBtn">
+      <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
+      </svg>
+      Save this article
+    </button>
+  </div>
+  <div id="status" class="status" style="display:none"></div>
+  <div class="footer">
+    <a href="#" id="optionsLink">settings</a>
+    <div id="connectionDot" class="dot"></div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
