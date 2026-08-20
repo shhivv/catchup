@@ -294,23 +294,40 @@ export default function FeedReaderScreen() {
   const hasNext = currentIndex < feedIds.length - 1;
   const hasPrev = currentIndex > 0;
 
+  const opacity = useSharedValue(1);
+
   const gesture = Gesture.Pan()
     .activeOffsetX([-30, 30])
     .failOffsetY([-10, 10])
     .onUpdate((e) => {
       translateX.value = e.translationX * 0.3;
+      const progress = Math.min(Math.abs(e.translationX) / 100, 1);
+      opacity.value = 1 - progress * 0.3;
     })
     .onEnd((e) => {
-      if (e.translationX < -100 && hasNext) {
-        runOnJS(goNext)();
-      } else if (e.translationX > 100 && hasPrev) {
-        runOnJS(goPrev)();
+      if (e.translationX < -80 && hasNext) {
+        opacity.value = withTiming(0, { duration: 120 });
+        translateX.value = withTiming(-width * 0.4, { duration: 120 }, () => {
+          runOnJS(goNext)();
+          translateX.value = 0;
+          opacity.value = 1;
+        });
+      } else if (e.translationX > 80 && hasPrev) {
+        opacity.value = withTiming(0, { duration: 120 });
+        translateX.value = withTiming(width * 0.4, { duration: 120 }, () => {
+          runOnJS(goPrev)();
+          translateX.value = 0;
+          opacity.value = 1;
+        });
+      } else {
+        translateX.value = withTiming(0, { duration: 100 });
+        opacity.value = withTiming(1, { duration: 100 });
       }
-      translateX.value = withSpring(0, { damping: 20, stiffness: 200 });
     });
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
+    opacity: opacity.value,
   }));
 
   if (configured === null || loading) {
