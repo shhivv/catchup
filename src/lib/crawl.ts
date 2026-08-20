@@ -397,7 +397,7 @@ export async function crawlFromSavedArticles(): Promise<{
 }
 
 const SEED_FEEDS = [
-  { url: "https://paulgraham.com/rss.html", name: "Paul Graham" },
+  { url: "https://www.theverge.com/rss/index.xml", name: "The Verge" },
   { url: "https://feeds.arstechnica.com/arstechnica/index", name: "Ars Technica" },
   { url: "https://www.wired.com/feed/rss", name: "WIRED" },
   { url: "https://feeds.feedburner.com/TheBrowserFeed", name: "The Browser" },
