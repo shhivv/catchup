@@ -7,7 +7,6 @@ import {
   Image,
   StyleSheet,
   ActivityIndicator,
-  TextInput,
   useWindowDimensions,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -31,7 +30,6 @@ import {
   markRead,
   archiveArticle,
   recordInterest,
-  addArticle,
   isConfigured,
   Article,
   Segment,
@@ -178,9 +176,6 @@ export default function FeedReaderScreen() {
   const [loading, setLoading] = useState(true);
   const [loadingArticle, setLoadingArticle] = useState(false);
   const [configured, setConfigured] = useState<boolean | null>(null);
-  const [showAdd, setShowAdd] = useState(false);
-  const [addUrl, setAddUrl] = useState("");
-  const [adding, setAdding] = useState(false);
   const [empty, setEmpty] = useState(false);
 
   const translateX = useSharedValue(0);
@@ -281,21 +276,6 @@ export default function FeedReaderScreen() {
     transform: [{ translateX: translateX.value }],
   }));
 
-  async function handleAdd() {
-    if (!addUrl.trim()) return;
-    setAdding(true);
-    try {
-      const result = await addArticle(addUrl.trim());
-      setAddUrl("");
-      setShowAdd(false);
-      if (result?.id) {
-        setFeedIds((prev) => [result.id, ...prev]);
-        setCurrentIndex(0);
-      }
-    } catch {}
-    setAdding(false);
-  }
-
   if (configured === null || loading) {
     return (
       <View style={styles.center}>
@@ -306,51 +286,12 @@ export default function FeedReaderScreen() {
 
   if (empty) {
     return (
-      <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyTitle}>nothing here yet</Text>
-          <Text style={styles.emptySubtitle}>
-            articles you don't finish reading will appear here
-          </Text>
-          <Pressable
-            style={styles.emptyAddBtn}
-            onPress={() => setShowAdd(true)}
-          >
-            <Text style={styles.emptyAddText}>+ add an article</Text>
-          </Pressable>
-          {showAdd && (
-            <View style={styles.emptyAddBar}>
-              <TextInput
-                style={styles.addInput}
-                value={addUrl}
-                onChangeText={setAddUrl}
-                placeholder="paste a url..."
-                placeholderTextColor={colors.textTertiary}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="url"
-                onSubmitEditing={handleAdd}
-                autoFocus
-              />
-              <Pressable
-                style={styles.addSubmit}
-                onPress={handleAdd}
-                disabled={adding}
-              >
-                <Text style={styles.addSubmitText}>
-                  {adding ? "..." : "add"}
-                </Text>
-              </Pressable>
-            </View>
-          )}
-          <Pressable
-            style={styles.settingsLink}
-            onPress={() => router.push("/settings")}
-          >
-            <Text style={styles.settingsLinkText}>settings</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
+      <View style={styles.center}>
+        <Text style={styles.emptyTitle}>nothing here yet</Text>
+        <Text style={styles.emptySubtitle}>
+          articles you don't finish reading will show up here
+        </Text>
+      </View>
     );
   }
 
@@ -359,53 +300,6 @@ export default function FeedReaderScreen() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.container} edges={["top"]}>
-        {/* Minimal top bar */}
-        <View style={styles.topBar}>
-          <Text style={styles.counter}>
-            {currentIndex + 1}/{feedIds.length}
-          </Text>
-          <View style={styles.topActions}>
-            <Pressable
-              onPress={() => setShowAdd(!showAdd)}
-              style={styles.topBtn}
-            >
-              <Text style={styles.topBtnText}>+</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => router.push("/settings")}
-              style={styles.topBtn}
-            >
-              <Text style={styles.topBtnText}>{"⚙"}</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        {showAdd && (
-          <View style={styles.addBar}>
-            <TextInput
-              style={styles.addInput}
-              value={addUrl}
-              onChangeText={setAddUrl}
-              placeholder="paste a url..."
-              placeholderTextColor={colors.textTertiary}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              onSubmitEditing={handleAdd}
-              autoFocus
-            />
-            <Pressable
-              style={styles.addSubmit}
-              onPress={handleAdd}
-              disabled={adding}
-            >
-              <Text style={styles.addSubmitText}>
-                {adding ? "..." : "add"}
-              </Text>
-            </Pressable>
-          </View>
-        )}
-
         {loadingArticle && !article ? (
           <View style={styles.center}>
             <ActivityIndicator color={colors.accent} />
@@ -419,14 +313,6 @@ export default function FeedReaderScreen() {
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
               >
-                {/* Swipe hint */}
-                <Text style={styles.swipeHint}>
-                  {hasPrev ? "← prev" : ""}
-                  {hasPrev && hasNext ? "  ·  " : ""}
-                  {hasNext ? "swipe to skip →" : ""}
-                  {"  ·  double-tap to save interest"}
-                </Text>
-
                 {/* Article header */}
                 <View style={styles.articleHeader}>
                   <View style={styles.metaRow}>
@@ -509,16 +395,7 @@ export default function FeedReaderScreen() {
                   </Text>
                 )}
 
-                {/* Next article teaser */}
-                {hasNext ? (
-                  <Pressable style={styles.nextTeaser} onPress={goNext}>
-                    <Text style={styles.nextLabel}>SWIPE FOR NEXT</Text>
-                  </Pressable>
-                ) : (
-                  <View style={styles.endTeaser}>
-                    <Text style={styles.endText}>you're all caught up</Text>
-                  </View>
-                )}
+                <View style={{ height: 60 }} />
               </ScrollView>
             </Animated.View>
           </GestureDetector>
@@ -535,71 +412,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     justifyContent: "center",
     alignItems: "center",
-  },
-  topBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: spacing.md,
-    height: 40,
-  },
-  counter: {
-    fontSize: 11,
-    fontFamily: "Courier",
-    color: colors.textTertiary,
-  },
-  topActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  topBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  topBtnText: {
-    fontSize: 18,
-    color: colors.textTertiary,
-  },
-  addBar: {
-    flexDirection: "row",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    gap: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
-  },
-  addInput: {
-    flex: 1,
-    backgroundColor: colors.bgRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: colors.text,
-  },
-  addSubmit: {
-    backgroundColor: colors.bgRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    justifyContent: "center",
-  },
-  addSubmitText: {
-    fontSize: 12,
-    fontFamily: "Courier",
-    color: colors.textSecondary,
-  },
-  swipeHint: {
-    fontSize: 11,
-    fontFamily: "Courier",
-    color: colors.textTertiary,
-    opacity: 0.5,
-    textAlign: "center",
-    marginBottom: spacing.md,
   },
   scroll: { flex: 1 },
   scrollContent: {
@@ -708,37 +520,6 @@ const styles = StyleSheet.create({
     lineHeight: 32,
     color: colors.text,
   },
-  nextTeaser: {
-    marginTop: 40,
-    paddingVertical: 24,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSubtle,
-    alignItems: "center",
-  },
-  nextLabel: {
-    fontSize: 11,
-    fontFamily: "Courier",
-    color: colors.textTertiary,
-    letterSpacing: 1.5,
-  },
-  endTeaser: {
-    marginTop: 40,
-    paddingVertical: 24,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSubtle,
-    alignItems: "center",
-  },
-  endText: {
-    fontFamily: "System",
-    fontSize: 16,
-    color: colors.textSecondary,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: spacing.lg,
-  },
   emptyTitle: {
     fontFamily: "System",
     fontSize: 20,
@@ -749,34 +530,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textTertiary,
     textAlign: "center",
-    marginBottom: 24,
-  },
-  emptyAddBtn: {
-    backgroundColor: colors.bgRaised,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    marginBottom: 16,
-  },
-  emptyAddText: {
-    fontSize: 14,
-    fontFamily: "Courier",
-    color: colors.textSecondary,
-  },
-  emptyAddBar: {
-    flexDirection: "row",
-    width: "100%",
-    gap: spacing.sm,
-    marginBottom: 16,
-  },
-  settingsLink: {
-    paddingVertical: 8,
-  },
-  settingsLinkText: {
-    fontSize: 12,
-    fontFamily: "Courier",
-    color: colors.textTertiary,
   },
 });
