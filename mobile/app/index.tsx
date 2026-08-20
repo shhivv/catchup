@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   useWindowDimensions,
 } from "react-native";
-import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   GestureDetector,
@@ -19,7 +18,6 @@ import {
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
   withTiming,
   runOnJS,
 } from "react-native-reanimated";
@@ -30,7 +28,6 @@ import {
   markRead,
   archiveArticle,
   recordInterest,
-  isConfigured,
   Article,
   Segment,
 } from "../lib/api";
@@ -115,11 +112,11 @@ function TappableParagraph({
   contentWidth: number;
 }) {
   const [tapped, setTapped] = useState(isTapped);
-  const bgOpacity = useSharedValue(isTapped ? 0.08 : 0);
+  const bgOpacity = useSharedValue(isTapped ? 0.06 : 0);
   const lastTap = useRef(0);
 
   const animatedBg = useAnimatedStyle(() => ({
-    backgroundColor: `rgba(201, 168, 124, ${bgOpacity.value})`,
+    backgroundColor: `rgba(255, 107, 138, ${bgOpacity.value})`,
   }));
 
   function handlePress() {
@@ -127,9 +124,9 @@ function TappableParagraph({
     if (now - lastTap.current < 350) {
       if (!tapped) {
         setTapped(true);
-        bgOpacity.value = withTiming(0.15, { duration: 200 });
+        bgOpacity.value = withTiming(0.12, { duration: 200 });
         setTimeout(() => {
-          bgOpacity.value = withTiming(0.08, { duration: 400 });
+          bgOpacity.value = withTiming(0.06, { duration: 400 });
         }, 600);
         recordInterest(articleId, segment.index, segment.text).catch(() => {});
       }
@@ -147,9 +144,12 @@ function TappableParagraph({
           defaultTextProps={{ selectable: true }}
         />
         {tapped && (
-          <View style={styles.tappedIndicator}>
-            <View style={styles.tappedDot} />
-          </View>
+          <>
+            <View style={styles.tappedLine} />
+            <View style={styles.heartBadge}>
+              <Text style={styles.heartIcon}>{"❤️"}</Text>
+            </View>
+          </>
         )}
       </Animated.View>
     </Pressable>
@@ -185,7 +185,6 @@ function prefetchAround(feedIds: number[], index: number) {
 }
 
 export default function FeedReaderScreen() {
-  const router = useRouter();
   const { width } = useWindowDimensions();
   const contentWidth = width - spacing.lg * 2;
 
@@ -197,28 +196,15 @@ export default function FeedReaderScreen() {
     new Set()
   );
   const [loading, setLoading] = useState(true);
-  const [configured, setConfigured] = useState<boolean | null>(null);
   const [empty, setEmpty] = useState(false);
 
   const translateX = useSharedValue(0);
   const scrollRef = useRef<ScrollView>(null);
 
-  useEffect(() => {
-    isConfigured().then((ok) => {
-      setConfigured(ok);
-      if (!ok) router.replace("/settings");
-    });
-  }, [router]);
-
   const fetchFeed = useCallback(async () => {
     try {
-      const data = await getFeed("unread", 1, 100);
+      const data = await getFeed("all", 1, 100);
       const ids = data.articles.map((a: Article) => a.id);
-      if (data.suggestions) {
-        for (const s of data.suggestions) {
-          if (!ids.includes(s.id)) ids.push(s.id);
-        }
-      }
       setFeedIds(ids);
       if (ids.length === 0) {
         setEmpty(true);
@@ -240,21 +226,19 @@ export default function FeedReaderScreen() {
   }, []);
 
   useEffect(() => {
-    if (configured) {
-      setLoading(true);
-      fetchFeed().then(async (ids) => {
-        if (ids && ids.length > 0) {
-          const first = await fetchAndCache(ids[0]);
-          if (first) {
-            showArticle(first);
-            markRead(ids[0]).catch(() => {});
-          }
-          prefetchAround(ids, 0);
-          setLoading(false);
+    setLoading(true);
+    fetchFeed().then(async (ids) => {
+      if (ids && ids.length > 0) {
+        const first = await fetchAndCache(ids[0]);
+        if (first) {
+          showArticle(first);
+          markRead(ids[0]).catch(() => {});
         }
-      });
-    }
-  }, [configured, fetchFeed, showArticle]);
+        prefetchAround(ids, 0);
+        setLoading(false);
+      }
+    });
+  }, [fetchFeed, showArticle]);
 
   useEffect(() => {
     if (feedIds.length === 0) return;
@@ -342,7 +326,7 @@ export default function FeedReaderScreen() {
     opacity: opacity.value,
   }));
 
-  if (configured === null || loading) {
+  if (loading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={colors.accent} />
@@ -360,8 +344,6 @@ export default function FeedReaderScreen() {
       </View>
     );
   }
-
-  const isTweet = article?.source_type === "tweet";
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -392,7 +374,7 @@ export default function FeedReaderScreen() {
 
                   <Text style={styles.title}>{article.title}</Text>
 
-                  {article.excerpt && !isTweet ? (
+                  {article.excerpt ? (
                     <Text style={styles.excerpt}>{article.excerpt}</Text>
                   ) : null}
 
@@ -408,7 +390,7 @@ export default function FeedReaderScreen() {
                   </View>
                 </View>
 
-                {article.lead_image_url && !isTweet ? (
+                {article.lead_image_url ? (
                   <Image
                     source={{ uri: article.lead_image_url }}
                     style={styles.leadImage}
@@ -416,20 +398,7 @@ export default function FeedReaderScreen() {
                   />
                 ) : null}
 
-                {isTweet ? (
-                  <View style={styles.tweetBox}>
-                    <Text style={styles.tweetContent}>
-                      {article.text_content || article.content}
-                    </Text>
-                    {article.lead_image_url ? (
-                      <Image
-                        source={{ uri: article.lead_image_url }}
-                        style={styles.tweetImage}
-                        resizeMode="cover"
-                      />
-                    ) : null}
-                  </View>
-                ) : segments.length > 0 ? (
+                {segments.length > 0 ? (
                   <View style={styles.segmentList}>
                     {segments.map((seg) => (
                       <TappableParagraph
@@ -540,38 +509,23 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     position: "relative",
   },
-  tappedIndicator: {
+  tappedLine: {
     position: "absolute",
-    left: -8,
-    top: 12,
-    bottom: 12,
-    width: 3,
-    justifyContent: "center",
+    left: -4,
+    top: 4,
+    bottom: 4,
+    width: 2.5,
+    backgroundColor: "#FF6B8A",
+    borderRadius: 2,
+    opacity: 0.7,
   },
-  tappedDot: {
-    width: 3,
-    height: "100%",
-    backgroundColor: colors.accent,
-    borderRadius: 1.5,
-    opacity: 0.6,
+  heartBadge: {
+    position: "absolute",
+    right: -2,
+    top: 4,
   },
-  tweetBox: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    padding: 20,
-    gap: 16,
-  },
-  tweetContent: {
-    fontFamily: "System",
-    fontSize: 20,
-    lineHeight: 30,
-    color: colors.text,
-  },
-  tweetImage: {
-    width: "100%",
-    height: 200,
-    borderRadius: 10,
+  heartIcon: {
+    fontSize: 12,
   },
   plainText: {
     fontFamily: "System",

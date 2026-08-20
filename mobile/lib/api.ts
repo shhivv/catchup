@@ -1,27 +1,16 @@
-const DEFAULT_SERVER_URL = "https://catchup.shivshanmugam.com";
-const DEFAULT_API_KEY = "8c723846e9d7ded08fa69366f01862c1";
-
-export async function getConfig() {
-  return { serverUrl: DEFAULT_SERVER_URL, apiKey: DEFAULT_API_KEY };
-}
-
-export async function saveConfig(_serverUrl: string, _apiKey: string) {
-  // hardcoded for now
-}
+const SERVER_URL = "https://catchup.shivshanmugam.com";
+const API_KEY = "8c723846e9d7ded08fa69366f01862c1";
 
 export async function isConfigured(): Promise<boolean> {
   return true;
 }
 
 async function apiFetch(path: string, options: RequestInit = {}) {
-  const { serverUrl, apiKey } = await getConfig();
-  if (!serverUrl || !apiKey) throw new Error("Not configured");
-
-  const res = await fetch(`${serverUrl}${path}`, {
+  const res = await fetch(`${SERVER_URL}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": apiKey,
+      "x-api-key": API_KEY,
       ...options.headers,
     },
   });
@@ -46,10 +35,8 @@ export interface Article {
   published_date: string;
   lead_image_url: string;
   word_count: number;
-  source_type: "article" | "tweet";
   is_read: number;
   is_archived: number;
-  capture_method: string;
   created_at: string;
 }
 
@@ -76,13 +63,6 @@ export async function archiveArticle(id: number) {
   return apiFetch(`/api/articles/${id}`, {
     method: "PATCH",
     body: JSON.stringify({ is_archived: true }),
-  });
-}
-
-export async function addArticle(url: string) {
-  return apiFetch("/api/add", {
-    method: "POST",
-    body: JSON.stringify({ url }),
   });
 }
 
