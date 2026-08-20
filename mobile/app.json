@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "catchup",
+    "slug": "catchup",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "catchup",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.catchup.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#141414",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.catchup.app"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ]
+  }
+}
