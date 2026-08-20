@@ -238,6 +238,9 @@ export default function FeedPage() {
   const [filter, setFilter] = useState<Filter>("unread");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [showAddUrl, setShowAddUrl] = useState(false);
+  const [addUrl, setAddUrl] = useState("");
+  const [adding, setAdding] = useState(false);
   const router = useRouter();
 
   const fetchArticles = useCallback(async () => {
@@ -266,6 +269,23 @@ export default function FeedPage() {
     setArticles((prev) => prev.filter((a) => a.id !== id));
   }
 
+  async function addArticleByUrl() {
+    if (!addUrl.trim()) return;
+    setAdding(true);
+    const res = await fetch("/api/add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: addUrl.trim() }),
+    });
+    const data = await res.json();
+    setAdding(false);
+    if (data.ok) {
+      setAddUrl("");
+      setShowAddUrl(false);
+      fetchArticles();
+    }
+  }
+
   const filters: { key: Filter; label: string }[] = [
     { key: "unread", label: "unread" },
     { key: "read", label: "read" },
@@ -292,8 +312,39 @@ export default function FeedPage() {
                   {f.label}
                 </button>
               ))}
+              <button
+                onClick={() => setShowAddUrl(!showAddUrl)}
+                className="ml-2 p-1.5 rounded-md text-text-tertiary hover:text-text transition-colors"
+                title="Add article by URL"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </button>
             </div>
           </div>
+          {showAddUrl && (
+            <div className="pb-3 flex gap-2">
+              <input
+                type="url"
+                value={addUrl}
+                onChange={(e) => setAddUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addArticleByUrl()}
+                placeholder="paste a url..."
+                autoFocus
+                className="flex-1 bg-bg-raised border border-border rounded-lg px-3 py-2 text-sm
+                  text-text placeholder:text-text-tertiary outline-none focus:border-accent/50 transition-colors"
+              />
+              <button
+                onClick={addArticleByUrl}
+                disabled={adding}
+                className="px-4 py-2 bg-bg-raised border border-border rounded-lg text-xs font-mono
+                  text-text-secondary hover:text-text hover:border-accent/30 transition-all disabled:opacity-50"
+              >
+                {adding ? "..." : "add"}
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
