@@ -395,3 +395,52 @@ export async function crawlFromSavedArticles(): Promise<{
 
   return { crawled, stored, sources: processedDomains.size };
 }
+
+const SEED_FEEDS = [
+  { url: "https://paulgraham.com/rss.html", name: "Paul Graham" },
+  { url: "https://feeds.arstechnica.com/arstechnica/index", name: "Ars Technica" },
+  { url: "https://www.wired.com/feed/rss", name: "WIRED" },
+  { url: "https://feeds.feedburner.com/TheBrowserFeed", name: "The Browser" },
+  { url: "https://blog.samaltman.com/feed", name: "Sam Altman" },
+  { url: "https://danluu.com/atom.xml", name: "Dan Luu" },
+  { url: "https://martinfowler.com/feed.atom", name: "Martin Fowler" },
+  { url: "https://simonwillison.net/atom/everything/", name: "Simon Willison" },
+  { url: "https://jvns.ca/atom.xml", name: "Julia Evans" },
+  { url: "https://www.joelonsoftware.com/feed/", name: "Joel on Software" },
+  { url: "https://waitbutwhy.com/feed", name: "Wait But Why" },
+  { url: "https://xkcd.com/atom.xml", name: "xkcd" },
+  { url: "https://rachelbythebay.com/w/atom.xml", name: "rachelbythebay" },
+  { url: "https://scottaaronson.blog/?feed=rss2", name: "Scott Aaronson" },
+];
+
+export async function seedInitialFeed(): Promise<{ stored: number }> {
+  const db = getDb();
+
+  const count = (
+    db.prepare("SELECT COUNT(*) as c FROM articles").get() as { c: number }
+  ).c;
+  if (count > 0) return { stored: 0 };
+
+  let stored = 0;
+  const maxPerFeed = 5;
+
+  for (const feed of SEED_FEEDS) {
+    const items = await parseFeed(feed.url);
+    for (const item of items.slice(0, maxPerFeed)) {
+      const scraped = await scrapeArticle(item.url);
+      if (!scraped || scraped.wordCount < 200) continue;
+
+      if (
+        await storeDiscoveredArticle(item.url, scraped, 0, "rss")
+      ) {
+        stored++;
+      }
+    }
+
+    db.prepare(
+      "INSERT OR IGNORE INTO feeds (url, site_url, site_name, article_count) VALUES (?, ?, ?, 0)"
+    ).run(feed.url, getDomain(feed.url) || feed.url, feed.name);
+  }
+
+  return { stored };
+}

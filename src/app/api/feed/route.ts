@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyRequest } from "@/lib/auth";
 import { getDb, Article } from "@/lib/db";
 import { buildProfile, scoreArticle } from "@/lib/tfidf";
+import { seedInitialFeed } from "@/lib/crawl";
 
 export async function GET(request: Request) {
   if (!verifyRequest(request)) {
@@ -12,19 +13,26 @@ export async function GET(request: Request) {
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "20");
   const filter = searchParams.get("filter") || "unread";
-  const source = searchParams.get("source") || "all";
 
   const db = getDb();
 
-  let where = "is_archived = 0 AND capture_method != 'suggested'";
+  const totalCount = (
+    db.prepare("SELECT COUNT(*) as c FROM articles").get() as { c: number }
+  ).c;
+
+  if (totalCount === 0) {
+    await seedInitialFeed();
+  }
+
+  let where = "is_archived = 0";
   if (filter === "unread") where += " AND is_read = 0";
   else if (filter === "read") where += " AND is_read = 1";
 
-  if (source === "article") where += " AND source_type = 'article'";
-  else if (source === "tweet") where += " AND source_type = 'tweet'";
-
   const allArticles = db
-    .prepare(`SELECT * FROM articles WHERE ${where} ORDER BY created_at DESC`)
+    .prepare(
+      `SELECT * FROM articles WHERE ${where} AND word_count > 0
+       ORDER BY created_at DESC`
+    )
     .all() as Article[];
 
   const total = allArticles.length;
@@ -71,36 +79,9 @@ export async function GET(request: Request) {
   const offset = (page - 1) * limit;
   const articles = ranked.slice(offset, offset + limit);
 
-  let suggestions = db
-    .prepare(
-      `SELECT * FROM articles
-       WHERE capture_method = 'suggested' AND is_read = 0 AND is_archived = 0
-         AND word_count > 0
-       ORDER BY relevance_score DESC, created_at DESC
-       LIMIT 10`
-    )
-    .all() as (Article & { relevance_score: number })[];
-
-  if (interests.length > 0) {
-    const allKw2 = interests.map((i) => {
-      try { return JSON.parse(i.keywords); } catch { return []; }
-    });
-    const prof = buildProfile(allKw2);
-    for (const s of suggestions) {
-      s.relevance_score = scoreArticle(
-        s.text_content || s.excerpt || s.title,
-        prof
-      );
-    }
-    suggestions.sort((a, b) => b.relevance_score - a.relevance_score);
-    suggestions = suggestions.slice(0, 5);
-  } else {
-    suggestions = suggestions.slice(0, 5);
-  }
-
   return NextResponse.json({
     articles,
-    suggestions,
+    suggestions: [],
     total,
     page,
     pages: Math.ceil(total / limit),
