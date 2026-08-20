@@ -63,7 +63,6 @@ export async function PATCH(
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 
-  updates.push("updated_at = datetime('now')");
   values.push(parseInt(id));
 
   db.prepare(

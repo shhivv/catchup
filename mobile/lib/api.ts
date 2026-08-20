@@ -1,10 +1,6 @@
 const SERVER_URL = "https://catchup.shivshanmugam.com";
 const API_KEY = "8c723846e9d7ded08fa69366f01862c1";
 
-export async function isConfigured(): Promise<boolean> {
-  return true;
-}
-
 async function apiFetch(path: string, options: RequestInit = {}) {
   const res = await fetch(`${SERVER_URL}${path}`, {
     ...options,

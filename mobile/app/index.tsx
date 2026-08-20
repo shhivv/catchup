@@ -22,6 +22,7 @@ import Animated, {
   runOnJS,
 } from "react-native-reanimated";
 import RenderHtml from "react-native-render-html";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   getFeed,
   getArticle,
@@ -199,6 +200,7 @@ export default function FeedReaderScreen() {
   const [empty, setEmpty] = useState(false);
 
   const translateX = useSharedValue(0);
+  const opacity = useSharedValue(1);
   const scrollRef = useRef<ScrollView>(null);
 
   const fetchFeed = useCallback(async () => {
@@ -223,11 +225,29 @@ export default function FeedReaderScreen() {
     setArticle(art);
     setSegments(art.segments || []);
     setTappedParagraphs(new Set(art.tappedParagraphs || []));
+    AsyncStorage.setItem("lastArticleId", String(art.id)).catch(() => {});
   }, []);
 
   useEffect(() => {
     setLoading(true);
-    fetchFeed().then(async (ids) => {
+    (async () => {
+      const savedId = await AsyncStorage.getItem("lastArticleId").catch(() => null);
+      const ids = await fetchFeed();
+
+      if (savedId) {
+        const saved = await fetchAndCache(parseInt(savedId));
+        if (saved) {
+          showArticle(saved);
+          if (ids && ids.length > 0) {
+            const idx = ids.indexOf(saved.id);
+            if (idx >= 0) setCurrentIndex(idx);
+          }
+          prefetchAround(ids || [], 0);
+          setLoading(false);
+          return;
+        }
+      }
+
       if (ids && ids.length > 0) {
         const first = await fetchAndCache(ids[0]);
         if (first) {
@@ -235,9 +255,9 @@ export default function FeedReaderScreen() {
           markRead(ids[0]).catch(() => {});
         }
         prefetchAround(ids, 0);
-        setLoading(false);
       }
-    });
+      setLoading(false);
+    })();
   }, [fetchFeed, showArticle]);
 
   useEffect(() => {
@@ -293,8 +313,6 @@ export default function FeedReaderScreen() {
 
   const hasNext = currentIndex < feedIds.length - 1;
   const hasPrev = currentIndex > 0;
-
-  const opacity = useSharedValue(1);
 
   const gesture = Gesture.Pan()
     .activeOffsetX([-30, 30])
