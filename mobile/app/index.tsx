@@ -161,6 +161,29 @@ interface FullArticle extends Article {
   tappedParagraphs?: number[];
 }
 
+const PREFETCH_AHEAD = 3;
+const articleCache = new Map<number, FullArticle>();
+
+async function fetchAndCache(id: number): Promise<FullArticle | null> {
+  if (articleCache.has(id)) return articleCache.get(id)!;
+  try {
+    const art = await getArticle(id);
+    articleCache.set(id, art);
+    return art;
+  } catch {
+    return null;
+  }
+}
+
+function prefetchAround(feedIds: number[], index: number) {
+  for (let i = 1; i <= PREFETCH_AHEAD; i++) {
+    const nextIdx = index + i;
+    if (nextIdx < feedIds.length && !articleCache.has(feedIds[nextIdx])) {
+      fetchAndCache(feedIds[nextIdx]);
+    }
+  }
+}
+
 export default function FeedReaderScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -174,7 +197,6 @@ export default function FeedReaderScreen() {
     new Set()
   );
   const [loading, setLoading] = useState(true);
-  const [loadingArticle, setLoadingArticle] = useState(false);
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [empty, setEmpty] = useState(false);
 
@@ -211,35 +233,50 @@ export default function FeedReaderScreen() {
     }
   }, []);
 
-  const loadArticle = useCallback(async (id: number) => {
-    setLoadingArticle(true);
-    try {
-      const art = await getArticle(id);
-      setArticle(art);
-      setSegments(art.segments || []);
-      setTappedParagraphs(new Set(art.tappedParagraphs || []));
-      markRead(id).catch(() => {});
-    } catch {}
-    setLoadingArticle(false);
+  const showArticle = useCallback((art: FullArticle) => {
+    setArticle(art);
+    setSegments(art.segments || []);
+    setTappedParagraphs(new Set(art.tappedParagraphs || []));
   }, []);
 
   useEffect(() => {
     if (configured) {
       setLoading(true);
-      fetchFeed().then((ids) => {
+      fetchFeed().then(async (ids) => {
         if (ids && ids.length > 0) {
-          loadArticle(ids[0]).then(() => setLoading(false));
+          const first = await fetchAndCache(ids[0]);
+          if (first) {
+            showArticle(first);
+            markRead(ids[0]).catch(() => {});
+          }
+          prefetchAround(ids, 0);
+          setLoading(false);
         }
       });
     }
-  }, [configured, fetchFeed, loadArticle]);
+  }, [configured, fetchFeed, showArticle]);
 
   useEffect(() => {
-    if (feedIds.length > 0 && feedIds[currentIndex]) {
-      loadArticle(feedIds[currentIndex]);
-      scrollRef.current?.scrollTo({ y: 0, animated: false });
+    if (feedIds.length === 0) return;
+    const id = feedIds[currentIndex];
+    if (!id) return;
+
+    const cached = articleCache.get(id);
+    if (cached) {
+      showArticle(cached);
+      markRead(id).catch(() => {});
+    } else {
+      fetchAndCache(id).then((art) => {
+        if (art) {
+          showArticle(art);
+          markRead(id).catch(() => {});
+        }
+      });
     }
-  }, [currentIndex, feedIds, loadArticle]);
+
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+    prefetchAround(feedIds, currentIndex);
+  }, [currentIndex, feedIds, showArticle]);
 
   const goNext = useCallback(() => {
     if (currentIndex < feedIds.length - 1) {
@@ -300,11 +337,7 @@ export default function FeedReaderScreen() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.container} edges={["top"]}>
-        {loadingArticle && !article ? (
-          <View style={styles.center}>
-            <ActivityIndicator color={colors.accent} />
-          </View>
-        ) : article ? (
+        {article ? (
           <GestureDetector gesture={gesture}>
             <Animated.View style={[{ flex: 1 }, animatedStyle]}>
               <ScrollView
@@ -313,7 +346,6 @@ export default function FeedReaderScreen() {
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
               >
-                {/* Article header */}
                 <View style={styles.articleHeader}>
                   <View style={styles.metaRow}>
                     {article.site_name ? (
@@ -347,7 +379,6 @@ export default function FeedReaderScreen() {
                   </View>
                 </View>
 
-                {/* Lead image */}
                 {article.lead_image_url && !isTweet ? (
                   <Image
                     source={{ uri: article.lead_image_url }}
@@ -356,7 +387,6 @@ export default function FeedReaderScreen() {
                   />
                 ) : null}
 
-                {/* Content */}
                 {isTweet ? (
                   <View style={styles.tweetBox}>
                     <Text style={styles.tweetContent}>
