@@ -86,14 +86,6 @@ export async function addArticle(url: string) {
   });
 }
 
-export async function getSuggestions(limit = 10) {
-  return apiFetch(`/api/suggestions?limit=${limit}`);
-}
-
-export async function discoverFeeds() {
-  return apiFetch("/api/discover", { method: "POST" });
-}
-
 export async function recordInterest(
   articleId: number,
   paragraphIndex: number,

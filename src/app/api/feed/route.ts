@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { verifyRequest } from "@/lib/auth";
 import { getDb, Article } from "@/lib/db";
 import { buildProfile, scoreArticle } from "@/lib/tfidf";
-import { seedInitialFeed } from "@/lib/crawl";
 
 export async function GET(request: Request) {
   if (!verifyRequest(request)) {
@@ -15,14 +14,6 @@ export async function GET(request: Request) {
   const filter = searchParams.get("filter") || "unread";
 
   const db = getDb();
-
-  const totalCount = (
-    db.prepare("SELECT COUNT(*) as c FROM articles").get() as { c: number }
-  ).c;
-
-  if (totalCount === 0) {
-    await seedInitialFeed();
-  }
 
   let where = "is_archived = 0";
   if (filter === "unread") where += " AND is_read = 0";
@@ -81,7 +72,6 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     articles,
-    suggestions: [],
     total,
     page,
     pages: Math.ceil(total / limit),
