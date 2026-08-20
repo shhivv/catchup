@@ -52,6 +52,55 @@ const FEEDS = [
   { name: "Noah Smith (Noahpinion)", feed: "https://www.noahpinion.blog/feed" },
   { name: "Matt Levine (Money Stuff)", feed: "https://www.bloomberg.com/opinion/authors/ARbTQlRLRjE/matthew-s-levine.rss" },
   { name: "Mises Institute", feed: "https://mises.org/feed" },
+  { name: "The Economist", feed: "https://www.economist.com/finance-and-economics/rss.xml" },
+  { name: "The Economist", feed: "https://www.economist.com/briefing/rss.xml" },
+  { name: "The Economist", feed: "https://www.economist.com/leaders/rss.xml" },
+];
+
+const SHLOKED_URLS = [
+  "https://www.shloked.com/chatgpt-work",
+  "https://www.shloked.com/interaction-acquisition",
+  "https://www.shloked.com/fable-5",
+  "https://www.shloked.com/chatgpt-memory-2026",
+  "https://www.shloked.com/vajra",
+  "https://www.shloked.com/claude-code",
+  "https://www.shloked.com/gemini-memory",
+  "https://www.shloked.com/claude-memory-tool",
+  "https://www.shloked.com/openpoke",
+  "https://www.shloked.com/bangalore-mumbai-bangalore",
+  "https://www.shloked.com/claude-memory",
+  "https://www.shloked.com/chatgpt-memory",
+  "https://www.shloked.com/san-francisco",
+  "https://www.shloked.com/first-ai-product",
+  "https://www.shloked.com/rahman",
+  "https://www.shloked.com/crypto-cycles",
+  "https://www.shloked.com/deep-research",
+  "https://www.shloked.com/aixbt",
+  "https://www.shloked.com/decentralized-compute",
+  "https://www.shloked.com/bitcoin-superconductor",
+  "https://www.shloked.com/sentient-ai-models",
+  "https://www.shloked.com/does-crypto-matter",
+  "https://www.shloked.com/avs",
+  "https://www.shloked.com/trusted-enclaves",
+  "https://www.shloked.com/bootstrapping-networks",
+  "https://www.shloked.com/abstracting-chains",
+  "https://www.shloked.com/runes",
+  "https://www.shloked.com/on-token-migrations",
+  "https://www.shloked.com/the-data-must-flow",
+  "https://www.shloked.com/danke-jurgen",
+  "https://www.shloked.com/sanctum",
+  "https://www.shloked.com/mev-on-solana",
+  "https://www.shloked.com/solana-validators",
+  "https://www.shloked.com/2023",
+  "https://www.shloked.com/openrouter",
+  "https://www.shloked.com/llm-pricing",
+  "https://www.shloked.com/llm-capabilities",
+  "https://www.shloked.com/mardi-himal",
+  "https://www.shloked.com/time-to-code",
+  "https://www.shloked.com/on-leaving-web3-gaming",
+  "https://www.shloked.com/zynga-mafia",
+  "https://www.shloked.com/south-korea-web3-gaming",
+  "https://www.shloked.com/skyweaver",
 ];
 
 async function parseFeed(url) {
@@ -232,6 +281,50 @@ async function main() {
     }
     totalInserted += inserted;
   }
+
+  // Scrape shloked.com articles directly (no RSS feed)
+  console.log(`\n[Shlok Khemani]`);
+  let shlokedInserted = 0;
+  for (const url of SHLOKED_URLS) {
+    const existing = db.prepare("SELECT id FROM articles WHERE url = ?").get(url);
+    if (existing) continue;
+
+    try {
+      const res = await fetch(url, {
+        headers: { "User-Agent": "CatchupBot/1.0" },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) continue;
+      const html = await res.text();
+
+      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+      const title = titleMatch ? decodeEntities(titleMatch[1].replace(/ \|.*$/, "").trim()) : url.split("/").pop();
+
+      const scraped = await scrapeArticle(url);
+      if (!scraped) {
+        console.log(`  ✗ ${title.slice(0, 50)}`);
+        continue;
+      }
+
+      insert.run(
+        url,
+        title,
+        scraped.content,
+        scraped.textContent,
+        scraped.textContent.slice(0, 300),
+        "Shlok Khemani",
+        "shloked.com",
+        scraped.wordCount,
+        null
+      );
+      shlokedInserted++;
+      console.log(`  + ${title.slice(0, 60)}`);
+    } catch {
+      continue;
+    }
+  }
+  totalInserted += shlokedInserted;
+  console.log(`  ${shlokedInserted} articles inserted`);
 
   const count = db.prepare("SELECT COUNT(*) as c FROM articles WHERE word_count > 100").get();
   console.log(`\nDone. Inserted ${totalInserted} new articles. Total in DB: ${count.c}`);
