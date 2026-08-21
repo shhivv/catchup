@@ -224,13 +224,13 @@ async function main() {
       created_at TEXT DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS idx_articles_read ON articles(is_read);
-    CREATE INDEX IF NOT EXISTS idx_articles_bookmarked ON articles(is_bookmarked);
   `);
 
   const cols = db.prepare("PRAGMA table_info(articles)").all();
   if (!cols.some((c) => c.name === "is_bookmarked")) {
     db.exec("ALTER TABLE articles ADD COLUMN is_bookmarked INTEGER DEFAULT 0");
   }
+  db.exec("CREATE INDEX IF NOT EXISTS idx_articles_bookmarked ON articles(is_bookmarked)");
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS interests (

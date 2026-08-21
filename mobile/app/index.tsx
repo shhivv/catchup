@@ -56,27 +56,24 @@ function readingTime(wordCount: number): string {
 const baseTagsStyles = {
   body: {
     color: colors.text,
-    fontFamily: "System",
-    fontSize: 18,
+    fontFamily: "EB-Garamond",
+    fontSize: 19,
     lineHeight: 32,
   },
   p: { marginBottom: 0, marginTop: 0 },
   a: { color: colors.accent, textDecorationLine: "underline" as const },
   h1: {
-    fontFamily: "System",
-    fontWeight: "600" as const,
+    fontFamily: "Geist-Bold",
     fontSize: 24,
     color: colors.text,
   },
   h2: {
-    fontFamily: "System",
-    fontWeight: "600" as const,
+    fontFamily: "Geist-Bold",
     fontSize: 20,
     color: colors.text,
   },
   h3: {
-    fontFamily: "System",
-    fontWeight: "600" as const,
+    fontFamily: "Geist-Bold",
     fontSize: 18,
     color: colors.text,
   },
@@ -84,7 +81,7 @@ const baseTagsStyles = {
     borderLeftWidth: 2,
     borderLeftColor: colors.accent,
     paddingLeft: 16,
-    fontStyle: "italic" as const,
+    fontFamily: "EB-Garamond-Italic",
     color: colors.textSecondary,
   },
   img: { borderRadius: 10 },
@@ -96,11 +93,11 @@ const baseTagsStyles = {
     padding: 12,
   },
   code: {
-    fontFamily: "Courier",
+    fontFamily: "Geist-Mono",
     fontSize: 14,
     backgroundColor: colors.bgRaised,
   },
-  li: { color: colors.text },
+  li: { color: colors.text, fontFamily: "EB-Garamond" },
 };
 
 function TappableParagraph({
@@ -512,7 +509,7 @@ const styles = StyleSheet.create({
   },
   siteName: {
     fontSize: 12,
-    fontFamily: "Courier",
+    fontFamily: "Geist-Mono",
     color: colors.accent,
     textTransform: "uppercase",
     letterSpacing: 1,
@@ -520,31 +517,30 @@ const styles = StyleSheet.create({
   metaDot: { color: colors.textTertiary, fontSize: 12 },
   metaDate: {
     fontSize: 12,
-    fontFamily: "Courier",
+    fontFamily: "Geist-Mono",
     color: colors.textTertiary,
   },
   title: {
-    fontFamily: "System",
+    fontFamily: "Geist-Bold",
     fontSize: 28,
     lineHeight: 36,
     color: colors.text,
-    fontWeight: "700",
     letterSpacing: -0.3,
   },
   excerpt: {
-    fontFamily: "System",
+    fontFamily: "Geist",
     fontSize: 18,
     lineHeight: 26,
     color: colors.textSecondary,
   },
   author: {
     fontSize: 12,
-    fontFamily: "Courier",
+    fontFamily: "Geist-Mono",
     color: colors.textTertiary,
   },
   readTime: {
     fontSize: 12,
-    fontFamily: "Courier",
+    fontFamily: "Geist-Mono",
     color: colors.textTertiary,
   },
   actionIcon: {
@@ -584,13 +580,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   plainText: {
-    fontFamily: "System",
+    fontFamily: "Geist",
     fontSize: 18,
     lineHeight: 32,
     color: colors.text,
   },
   emptyTitle: {
-    fontFamily: "System",
+    fontFamily: "Geist",
     fontSize: 20,
     color: colors.textSecondary,
     marginBottom: 8,
