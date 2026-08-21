@@ -424,15 +424,29 @@ export default function FeedReaderScreen() {
                   </View>
 
                   <View style={styles.actionRow}>
-                    <Pressable onPress={toggleBookmark} hitSlop={12}>
-                      <Text style={styles.actionIcon}>
-                        {bookmarked ? "\u{1F516}" : "\u{1F3F7}\u{FE0F}"}
+                    <Pressable
+                      onPress={toggleBookmark}
+                      hitSlop={12}
+                      style={[
+                        styles.actionBtn,
+                        bookmarked && styles.actionBtnActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.actionLabel,
+                          bookmarked && styles.actionLabelActive,
+                        ]}
+                      >
+                        {bookmarked ? "bookmarked" : "bookmark"}
                       </Text>
                     </Pressable>
-                    <Pressable onPress={shareArticle} hitSlop={12}>
-                      <Text style={styles.actionIcon}>
-                        {"\u{2197}\u{FE0F}"}
-                      </Text>
+                    <Pressable
+                      onPress={shareArticle}
+                      hitSlop={12}
+                      style={styles.actionBtn}
+                    >
+                      <Text style={styles.actionLabel}>share</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -543,10 +557,27 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 10,
   },
-  actionIcon: {
-    fontSize: 20,
+  actionBtn: {
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  actionBtnActive: {
+    borderColor: colors.accent,
+    backgroundColor: "rgba(201, 168, 124, 0.1)",
+  },
+  actionLabel: {
+    fontFamily: "Geist-Mono",
+    fontSize: 11,
+    color: colors.textTertiary,
+    letterSpacing: 0.5,
+  },
+  actionLabelActive: {
+    color: colors.accent,
   },
   leadImage: {
     width: "100%",
