@@ -6,7 +6,6 @@ import {
   Pressable,
   Image,
   StyleSheet,
-  ActivityIndicator,
   useWindowDimensions,
   Share,
 } from "react-native";
@@ -20,8 +19,16 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
+  withSpring,
+  withDelay,
+  withSequence,
+  withRepeat,
   runOnJS,
+  FadeIn,
+  Easing,
+  interpolate,
 } from "react-native-reanimated";
+import { Feather } from "@expo/vector-icons";
 import RenderHtml from "react-native-render-html";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -36,6 +43,30 @@ import {
 } from "../lib/api";
 import { colors, spacing } from "../lib/theme";
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+const SPRING_CONFIG = { damping: 20, stiffness: 300, mass: 0.8 };
+const SPRING_SNAPPY = { damping: 15, stiffness: 400, mass: 0.5 };
+const ENTER_DURATION = 500;
+const ENTER_EASE = Easing.out(Easing.exp);
+
+function stripHtml(str: string): string {
+  return str.replace(/<[^>]*>?/g, "").replace(/\s+/g, " ").trim();
+}
+
+function decodeEntities(str: string): string {
+  const entities: Record<string, string> = {
+    "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"',
+    "&#39;": "'", "&apos;": "'", "&nbsp;": " ",
+  };
+  return str
+    .replace(/&(?:#(\d+)|#x([0-9a-fA-F]+)|(\w+));/g, (match, dec, hex, named) => {
+      if (dec) return String.fromCharCode(parseInt(dec, 10));
+      if (hex) return String.fromCharCode(parseInt(hex, 16));
+      return entities[`&${named};`] ?? match;
+    });
+}
+
 function formatDate(dateStr: string): string {
   if (!dateStr) return "";
   try {
@@ -49,9 +80,17 @@ function formatDate(dateStr: string): string {
   }
 }
 
-function readingTime(wordCount: number): string {
-  return `${Math.max(1, Math.round(wordCount / 238))} min read`;
-}
+const domVisitors = {
+  onElement: (el: any) => {
+    if (el.name === "img") {
+      const src = el.attribs?.src || "";
+      if (!src.startsWith("http://") && !src.startsWith("https://")) {
+        el.attribs = { ...el.attribs, src: "" };
+        el.name = "span";
+      }
+    }
+  },
+};
 
 const baseTagsStyles = {
   body: {
@@ -61,7 +100,7 @@ const baseTagsStyles = {
     lineHeight: 32,
   },
   p: { marginBottom: 0, marginTop: 0 },
-  a: { color: colors.accent, textDecorationLine: "underline" as const },
+  a: { color: "#c4c0bb", textDecorationLine: "underline" as const, textDecorationColor: "#555" },
   h1: {
     fontFamily: "Geist-Bold",
     fontSize: 24,
@@ -100,23 +139,87 @@ const baseTagsStyles = {
   li: { color: colors.text },
 };
 
+function ActionButton({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active?: boolean;
+  onPress: () => void;
+}) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <AnimatedPressable
+      onPressIn={() => {
+        scale.value = withSpring(0.92, SPRING_SNAPPY);
+      }}
+      onPressOut={() => {
+        scale.value = withSpring(1, SPRING_CONFIG);
+      }}
+      onPress={onPress}
+      hitSlop={12}
+      style={[styles.actionBtn, active && styles.actionBtnActive, animatedStyle]}
+    >
+      <Text style={[styles.actionLabel, active && styles.actionLabelActive]}>
+        {label}
+      </Text>
+    </AnimatedPressable>
+  );
+}
+
 function TappableParagraph({
   segment,
   articleId,
   isTapped,
   contentWidth,
+  enterDelay,
 }: {
   segment: Segment;
   articleId: number;
   isTapped: boolean;
   contentWidth: number;
+  enterDelay: number;
 }) {
   const [tapped, setTapped] = useState(isTapped);
   const bgOpacity = useSharedValue(isTapped ? 0.06 : 0);
+  const lineScale = useSharedValue(isTapped ? 1 : 0);
+  const heartScale = useSharedValue(isTapped ? 1 : 0);
   const lastTap = useRef(0);
+
+  const enterOpacity = useSharedValue(0);
+  const enterY = useSharedValue(8);
+
+  useEffect(() => {
+    enterOpacity.value = withDelay(
+      enterDelay,
+      withTiming(1, { duration: ENTER_DURATION, easing: ENTER_EASE })
+    );
+    enterY.value = withDelay(
+      enterDelay,
+      withTiming(0, { duration: ENTER_DURATION, easing: ENTER_EASE })
+    );
+  }, [enterDelay, enterOpacity, enterY]);
 
   const animatedBg = useAnimatedStyle(() => ({
     backgroundColor: `rgba(255, 107, 138, ${bgOpacity.value})`,
+    opacity: enterOpacity.value,
+    transform: [{ translateY: enterY.value }],
+  }));
+
+  const lineStyle = useAnimatedStyle(() => ({
+    transform: [{ scaleY: lineScale.value }],
+    opacity: lineScale.value,
+  }));
+
+  const heartStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: heartScale.value }],
+    opacity: heartScale.value,
   }));
 
   function handlePress() {
@@ -124,10 +227,15 @@ function TappableParagraph({
     if (now - lastTap.current < 350) {
       if (!tapped) {
         setTapped(true);
-        bgOpacity.value = withTiming(0.12, { duration: 200 });
-        setTimeout(() => {
-          bgOpacity.value = withTiming(0.06, { duration: 400 });
-        }, 600);
+        bgOpacity.value = withSequence(
+          withTiming(0.14, { duration: 150 }),
+          withTiming(0.06, { duration: 500, easing: Easing.out(Easing.quad) })
+        );
+        lineScale.value = withSpring(1, SPRING_CONFIG);
+        heartScale.value = withSequence(
+          withSpring(1.3, { damping: 8, stiffness: 400, mass: 0.4 }),
+          withSpring(1, SPRING_CONFIG)
+        );
         recordInterest(articleId, segment.index, segment.text).catch(() => {});
       }
     }
@@ -141,18 +249,156 @@ function TappableParagraph({
           contentWidth={contentWidth}
           source={{ html: segment.html }}
           tagsStyles={baseTagsStyles}
+          domVisitors={domVisitors}
           defaultTextProps={{ selectable: true }}
         />
         {tapped && (
           <>
-            <View style={styles.tappedLine} />
-            <View style={styles.heartBadge}>
-              <Text style={styles.heartIcon}>{"❤️"}</Text>
-            </View>
+            <Animated.View style={[styles.tappedLine, lineStyle]} />
+            <Animated.View style={[styles.heartBadge, heartStyle]}>
+              <Feather name="heart" size={11} color="#FF6B8A" />
+            </Animated.View>
           </>
         )}
       </Animated.View>
     </Pressable>
+  );
+}
+
+function SkeletonBlock({ width, height, radius = 6, delay = 0 }: {
+  width: number | string;
+  height: number;
+  radius?: number;
+  delay?: number;
+}) {
+  const shimmer = useSharedValue(0.04);
+
+  useEffect(() => {
+    shimmer.value = withDelay(
+      delay,
+      withRepeat(
+        withSequence(
+          withTiming(0.09, { duration: 900, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.04, { duration: 900, easing: Easing.inOut(Easing.ease) })
+        ),
+        -1,
+        true
+      )
+    );
+  }, [delay, shimmer]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    backgroundColor: `rgba(255, 255, 255, ${shimmer.value})`,
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        {
+          width: width as any,
+          height,
+          borderRadius: radius,
+        },
+        animatedStyle,
+      ]}
+    />
+  );
+}
+
+function ArticleSkeleton({ width }: { width: number }) {
+  const contentWidth = width - spacing.lg * 2;
+
+  return (
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <Animated.View
+        entering={FadeIn.duration(400)}
+        style={[styles.scrollContent, { paddingTop: spacing.sm }]}
+      >
+        <View style={styles.articleHeader}>
+          <View style={styles.metaRow}>
+            <SkeletonBlock width={80} height={12} delay={0} />
+            <SkeletonBlock width={100} height={12} delay={50} />
+          </View>
+          <SkeletonBlock width={contentWidth * 0.9} height={28} radius={4} delay={80} />
+          <SkeletonBlock width={contentWidth * 0.7} height={28} radius={4} delay={100} />
+          <SkeletonBlock width={contentWidth} height={18} radius={4} delay={140} />
+          <SkeletonBlock width={contentWidth * 0.6} height={18} radius={4} delay={160} />
+          <View style={styles.metaRow}>
+            <SkeletonBlock width={90} height={12} delay={200} />
+            <SkeletonBlock width={70} height={12} delay={220} />
+          </View>
+          <View style={styles.actionRow}>
+            <SkeletonBlock width={80} height={26} radius={14} delay={260} />
+            <SkeletonBlock width={56} height={26} radius={14} delay={280} />
+          </View>
+        </View>
+        <SkeletonBlock width={contentWidth} height={200} radius={12} delay={320} />
+        <View style={{ gap: 16, marginTop: 28 }}>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <View key={i} style={{ gap: 8 }}>
+              <SkeletonBlock width={contentWidth} height={14} delay={380 + i * 40} />
+              <SkeletonBlock width={contentWidth * 0.85} height={14} delay={400 + i * 40} />
+              <SkeletonBlock width={contentWidth * 0.65} height={14} delay={420 + i * 40} />
+            </View>
+          ))}
+        </View>
+      </Animated.View>
+    </SafeAreaView>
+  );
+}
+
+function InlineSkeleton({ contentWidth }: { contentWidth: number }) {
+  return (
+    <View style={[styles.scrollContent, { paddingTop: spacing.sm }]}>
+      <View style={styles.articleHeader}>
+        <View style={styles.metaRow}>
+          <SkeletonBlock width={80} height={12} delay={0} />
+          <SkeletonBlock width={100} height={12} delay={50} />
+        </View>
+        <SkeletonBlock width={contentWidth * 0.9} height={28} radius={4} delay={80} />
+        <SkeletonBlock width={contentWidth * 0.7} height={28} radius={4} delay={100} />
+        <SkeletonBlock width={contentWidth} height={18} radius={4} delay={140} />
+        <SkeletonBlock width={contentWidth * 0.6} height={18} radius={4} delay={160} />
+        <View style={styles.metaRow}>
+          <SkeletonBlock width={90} height={12} delay={200} />
+          <SkeletonBlock width={70} height={12} delay={220} />
+        </View>
+      </View>
+      <SkeletonBlock width={contentWidth} height={200} radius={12} delay={280} />
+      <View style={{ gap: 16, marginTop: 28 }}>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <View key={i} style={{ gap: 8 }}>
+            <SkeletonBlock width={contentWidth} height={14} delay={340 + i * 40} />
+            <SkeletonBlock width={contentWidth * 0.85} height={14} delay={360 + i * 40} />
+            <SkeletonBlock width={contentWidth * 0.65} height={14} delay={380 + i * 40} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function FadeImage({ uri, style }: { uri: string; style: any }) {
+  const opacity = useSharedValue(0);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View style={animatedStyle}>
+      <Image
+        source={{ uri }}
+        style={style}
+        resizeMode="cover"
+        onLoad={() => {
+          opacity.value = withTiming(1, {
+            duration: 400,
+            easing: Easing.out(Easing.quad),
+          });
+        }}
+      />
+    </Animated.View>
   );
 }
 
@@ -161,27 +407,132 @@ interface FullArticle extends Article {
   tappedParagraphs?: number[];
 }
 
-const PREFETCH_AHEAD = 3;
+const PREFETCH_AHEAD = 10;
+const PREFETCH_BEHIND = 3;
 const articleCache = new Map<number, FullArticle>();
+const inflightFetches = new Map<number, Promise<FullArticle | null>>();
 
-async function fetchAndCache(id: number): Promise<FullArticle | null> {
-  if (articleCache.has(id)) return articleCache.get(id)!;
-  try {
-    const art = await getArticle(id);
-    articleCache.set(id, art);
-    return art;
-  } catch {
-    return null;
-  }
+function fetchAndCache(id: number): Promise<FullArticle | null> {
+  if (articleCache.has(id)) return Promise.resolve(articleCache.get(id)!);
+  if (inflightFetches.has(id)) return inflightFetches.get(id)!;
+  const promise = getArticle(id)
+    .then((art: FullArticle) => {
+      articleCache.set(id, art);
+      inflightFetches.delete(id);
+      return art;
+    })
+    .catch(() => {
+      inflightFetches.delete(id);
+      return null;
+    });
+  inflightFetches.set(id, promise);
+  return promise;
 }
 
 function prefetchAround(feedIds: number[], index: number) {
   for (let i = 1; i <= PREFETCH_AHEAD; i++) {
-    const nextIdx = index + i;
-    if (nextIdx < feedIds.length && !articleCache.has(feedIds[nextIdx])) {
-      fetchAndCache(feedIds[nextIdx]);
+    const idx = index + i;
+    if (idx < feedIds.length && !articleCache.has(feedIds[idx])) {
+      fetchAndCache(feedIds[idx]);
     }
   }
+  for (let i = 1; i <= PREFETCH_BEHIND; i++) {
+    const idx = index - i;
+    if (idx >= 0 && !articleCache.has(feedIds[idx])) {
+      fetchAndCache(feedIds[idx]);
+    }
+  }
+}
+
+function ArticleHeader({
+  article,
+  bookmarked,
+  onToggleBookmark,
+  onShare,
+}: {
+  article: FullArticle;
+  bookmarked: boolean;
+  onToggleBookmark: () => void;
+  onShare: () => void;
+}) {
+  const bookmarkScale = useSharedValue(1);
+
+  const prevBookmarked = useRef(bookmarked);
+  useEffect(() => {
+    if (bookmarked !== prevBookmarked.current) {
+      bookmarkScale.value = withSequence(
+        withSpring(1.15, { damping: 8, stiffness: 500, mass: 0.3 }),
+        withSpring(1, SPRING_CONFIG)
+      );
+      prevBookmarked.current = bookmarked;
+    }
+  }, [bookmarked, bookmarkScale]);
+
+  return (
+    <View style={styles.articleHeader}>
+      <Animated.View
+        entering={FadeIn.duration(ENTER_DURATION).easing(ENTER_EASE)}
+        style={styles.metaRow}
+      >
+        {article.site_name ? (
+          <Text style={styles.siteName}>{article.site_name}</Text>
+        ) : null}
+        {article.published_date ? (
+          <>
+            <Text style={styles.metaDot}>{"·"}</Text>
+            <Text style={styles.metaDate}>
+              {formatDate(article.published_date)}
+            </Text>
+          </>
+        ) : null}
+      </Animated.View>
+
+      <Animated.Text
+        entering={FadeIn.duration(ENTER_DURATION)
+          .easing(ENTER_EASE)
+          .delay(60)}
+        style={styles.title}
+      >
+        {decodeEntities(article.title)}
+      </Animated.Text>
+
+      {article.excerpt ? (
+        <Animated.Text
+          entering={FadeIn.duration(ENTER_DURATION)
+            .easing(ENTER_EASE)
+            .delay(120)}
+          style={styles.excerpt}
+        >
+          {stripHtml(decodeEntities(article.excerpt))}
+        </Animated.Text>
+      ) : null}
+
+      <Animated.View
+        entering={FadeIn.duration(ENTER_DURATION)
+          .easing(ENTER_EASE)
+          .delay(180)}
+        style={styles.metaRow}
+      >
+        {article.author ? (
+          <Text style={styles.author}>{article.author}</Text>
+        ) : null}
+      </Animated.View>
+
+      <Animated.View
+        entering={FadeIn.duration(ENTER_DURATION)
+          .easing(ENTER_EASE)
+          .delay(240)}
+        style={styles.actionRow}
+      >
+        <ActionButton
+          label={bookmarked ? "bookmarked" : "bookmark"}
+          active={bookmarked}
+          onPress={onToggleBookmark}
+        />
+        <ActionButton label="share" onPress={onShare} />
+      </Animated.View>
+    </View>
+  );
 }
 
 export default function FeedReaderScreen() {
@@ -198,6 +549,7 @@ export default function FeedReaderScreen() {
   const [bookmarked, setBookmarked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [empty, setEmpty] = useState(false);
+  const [articleKey, setArticleKey] = useState(0);
 
   const translateX = useSharedValue(0);
   const opacity = useSharedValue(1);
@@ -226,13 +578,16 @@ export default function FeedReaderScreen() {
     setSegments(art.segments || []);
     setTappedParagraphs(new Set(art.tappedParagraphs || []));
     setBookmarked(!!art.is_bookmarked);
+    setArticleKey((k) => k + 1);
     AsyncStorage.setItem("lastArticleId", String(art.id)).catch(() => {});
   }, []);
 
   useEffect(() => {
     setLoading(true);
     (async () => {
-      const savedId = await AsyncStorage.getItem("lastArticleId").catch(() => null);
+      const savedId = await AsyncStorage.getItem("lastArticleId").catch(
+        () => null
+      );
       const ids = await fetchFeed();
 
       if (savedId) {
@@ -242,8 +597,8 @@ export default function FeedReaderScreen() {
           if (ids && ids.length > 0) {
             const idx = ids.indexOf(saved.id);
             if (idx >= 0) setCurrentIndex(idx);
+            prefetchAround(ids, idx >= 0 ? idx : 0);
           }
-          prefetchAround(ids || [], 0);
           setLoading(false);
           return;
         }
@@ -261,56 +616,59 @@ export default function FeedReaderScreen() {
     })();
   }, [fetchFeed, showArticle]);
 
-  useEffect(() => {
-    if (feedIds.length === 0) return;
-    const id = feedIds[currentIndex];
-    if (!id) return;
+  const pendingReveal = useRef<"instant" | "fade">("instant");
 
-    const cached = articleCache.get(id);
-    if (cached) {
-      showArticle(cached);
-      markRead(id).catch(() => {});
+  useEffect(() => {
+    if (pendingReveal.current === "instant") {
+      opacity.value = 1;
     } else {
-      fetchAndCache(id).then((art) => {
-        if (art) {
-          showArticle(art);
-          markRead(id).catch(() => {});
-        }
+      opacity.value = withTiming(1, {
+        duration: 300,
+        easing: Easing.out(Easing.quad),
       });
     }
+  }, [articleKey, opacity]);
 
-    scrollRef.current?.scrollTo({ y: 0, animated: false });
-    prefetchAround(feedIds, currentIndex);
-  }, [currentIndex, feedIds, showArticle]);
+  const navigate = useCallback(
+    (direction: 1 | -1) => {
+      const nextIndex = currentIndex + direction;
+      if (nextIndex < 0 || nextIndex >= feedIds.length) return;
 
-  const goNext = useCallback(() => {
-    if (currentIndex >= feedIds.length - 1) return;
-    if (article) archiveArticle(article.id).catch(() => {});
-    const nextId = feedIds[currentIndex + 1];
-    const cached = articleCache.get(nextId);
-    if (cached) {
-      showArticle(cached);
-      markRead(nextId).catch(() => {});
+      if (direction === 1 && article) {
+        archiveArticle(article.id).catch(() => {});
+      }
+
+      translateX.value = 0;
+      opacity.value = 0;
+
+      const nextId = feedIds[nextIndex];
+      const cached = articleCache.get(nextId);
+
       scrollRef.current?.scrollTo({ y: 0, animated: false });
-    }
-    setCurrentIndex((i) => i + 1);
-    translateX.value = 0;
-    opacity.value = 1;
-  }, [currentIndex, feedIds, article, showArticle, translateX, opacity]);
+      setCurrentIndex(nextIndex);
+      prefetchAround(feedIds, nextIndex);
 
-  const goPrev = useCallback(() => {
-    if (currentIndex <= 0) return;
-    const prevId = feedIds[currentIndex - 1];
-    const cached = articleCache.get(prevId);
-    if (cached) {
-      showArticle(cached);
-      markRead(prevId).catch(() => {});
-      scrollRef.current?.scrollTo({ y: 0, animated: false });
-    }
-    setCurrentIndex((i) => i - 1);
-    translateX.value = 0;
-    opacity.value = 1;
-  }, [currentIndex, feedIds, showArticle, translateX, opacity]);
+      if (cached) {
+        pendingReveal.current = "instant";
+        showArticle(cached);
+        markRead(nextId).catch(() => {});
+      } else {
+        pendingReveal.current = "fade";
+        setArticle(null);
+        setArticleKey((k) => k + 1);
+        fetchAndCache(nextId).then((art) => {
+          if (art) {
+            showArticle(art);
+            markRead(nextId).catch(() => {});
+          }
+        });
+      }
+    },
+    [currentIndex, feedIds, article, showArticle, translateX, opacity]
+  );
+
+  const goNext = useCallback(() => navigate(1), [navigate]);
+  const goPrev = useCallback(() => navigate(-1), [navigate]);
 
   const toggleBookmark = useCallback(() => {
     if (!article) return;
@@ -334,47 +692,74 @@ export default function FeedReaderScreen() {
     .activeOffsetX([-30, 30])
     .failOffsetY([-10, 10])
     .onUpdate((e) => {
-      translateX.value = e.translationX * 0.3;
-      const progress = Math.min(Math.abs(e.translationX) / 100, 1);
-      opacity.value = 1 - progress * 0.3;
+      const resistance = 0.35;
+      const edgeDamping =
+        (e.translationX < 0 && !hasNext) || (e.translationX > 0 && !hasPrev)
+          ? 0.12
+          : resistance;
+      translateX.value = e.translationX * edgeDamping;
+      const progress = Math.min(Math.abs(e.translationX) / 120, 1);
+      opacity.value = 1 - progress * 0.15;
     })
     .onEnd((e) => {
       if (e.translationX < -80 && hasNext) {
-        opacity.value = withTiming(0, { duration: 100 });
-        translateX.value = withTiming(-width * 0.3, { duration: 100 }, () => {
-          runOnJS(goNext)();
+        opacity.value = withTiming(0, {
+          duration: 150,
+          easing: Easing.in(Easing.quad),
         });
+        translateX.value = withTiming(
+          -width * 0.25,
+          { duration: 150, easing: Easing.in(Easing.quad) },
+          () => {
+            runOnJS(goNext)();
+          }
+        );
       } else if (e.translationX > 80 && hasPrev) {
-        opacity.value = withTiming(0, { duration: 100 });
-        translateX.value = withTiming(width * 0.3, { duration: 100 }, () => {
-          runOnJS(goPrev)();
+        opacity.value = withTiming(0, {
+          duration: 150,
+          easing: Easing.in(Easing.quad),
         });
+        translateX.value = withTiming(
+          width * 0.25,
+          { duration: 150, easing: Easing.in(Easing.quad) },
+          () => {
+            runOnJS(goPrev)();
+          }
+        );
       } else {
-        translateX.value = withTiming(0, { duration: 100 });
-        opacity.value = withTiming(1, { duration: 100 });
+        translateX.value = withSpring(0, SPRING_CONFIG);
+        opacity.value = withSpring(1, SPRING_CONFIG);
       }
     });
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-    opacity: opacity.value,
-  }));
+  const animatedStyle = useAnimatedStyle(() => {
+    const scale = interpolate(
+      Math.abs(translateX.value),
+      [0, width * 0.3],
+      [1, 0.97]
+    );
+    return {
+      transform: [{ translateX: translateX.value }, { scale }],
+      opacity: opacity.value,
+    };
+  });
 
   if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.accent} />
-      </View>
-    );
+    return <ArticleSkeleton width={width} />;
   }
 
   if (empty) {
     return (
       <View style={styles.center}>
-        <Text style={styles.emptyTitle}>nothing here yet</Text>
-        <Text style={styles.emptySubtitle}>
-          articles you don't finish reading will show up here
-        </Text>
+        <Animated.View
+          entering={FadeIn.duration(600).easing(ENTER_EASE)}
+          style={{ alignItems: "center" }}
+        >
+          <Text style={styles.emptyTitle}>nothing here yet</Text>
+          <Text style={styles.emptySubtitle}>
+            articles you don't finish reading will show up here
+          </Text>
+        </Animated.View>
       </View>
     );
   }
@@ -382,113 +767,81 @@ export default function FeedReaderScreen() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.container} edges={["top"]}>
-        {article ? (
-          <GestureDetector gesture={gesture}>
-            <Animated.View style={[{ flex: 1 }, animatedStyle]}>
+        <GestureDetector gesture={gesture}>
+          <Animated.View style={[{ flex: 1 }, animatedStyle]}>
+            {article ? (
               <ScrollView
                 ref={scrollRef}
                 style={styles.scroll}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
               >
-                <View style={styles.articleHeader}>
-                  <View style={styles.metaRow}>
-                    {article.site_name ? (
-                      <Text style={styles.siteName}>{article.site_name}</Text>
-                    ) : null}
-                    {article.published_date ? (
-                      <>
-                        <Text style={styles.metaDot}>{"·"}</Text>
-                        <Text style={styles.metaDate}>
-                          {formatDate(article.published_date)}
-                        </Text>
-                      </>
-                    ) : null}
-                  </View>
-
-                  <Text style={styles.title}>{article.title}</Text>
-
-                  {article.excerpt ? (
-                    <Text style={styles.excerpt}>{article.excerpt}</Text>
-                  ) : null}
-
-                  <View style={styles.metaRow}>
-                    {article.author ? (
-                      <Text style={styles.author}>{article.author}</Text>
-                    ) : null}
-                    {article.word_count > 0 ? (
-                      <Text style={styles.readTime}>
-                        {readingTime(article.word_count)}
-                      </Text>
-                    ) : null}
-                  </View>
-
-                  <View style={styles.actionRow}>
-                    <Pressable
-                      onPress={toggleBookmark}
-                      hitSlop={12}
-                      style={[
-                        styles.actionBtn,
-                        bookmarked && styles.actionBtnActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.actionLabel,
-                          bookmarked && styles.actionLabelActive,
-                        ]}
-                      >
-                        {bookmarked ? "bookmarked" : "bookmark"}
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={shareArticle}
-                      hitSlop={12}
-                      style={styles.actionBtn}
-                    >
-                      <Text style={styles.actionLabel}>share</Text>
-                    </Pressable>
-                  </View>
-                </View>
+                <ArticleHeader
+                  key={`header-${articleKey}`}
+                  article={article}
+                  bookmarked={bookmarked}
+                  onToggleBookmark={toggleBookmark}
+                  onShare={shareArticle}
+                />
 
                 {article.lead_image_url ? (
-                  <Image
-                    source={{ uri: article.lead_image_url }}
-                    style={styles.leadImage}
-                    resizeMode="cover"
-                  />
+                  <Animated.View
+                    entering={FadeIn.duration(ENTER_DURATION)
+                      .easing(ENTER_EASE)
+                      .delay(300)}
+                  >
+                    <FadeImage
+                      uri={article.lead_image_url}
+                      style={styles.leadImage}
+                    />
+                  </Animated.View>
                 ) : null}
 
                 {segments.length > 0 ? (
                   <View style={styles.segmentList}>
-                    {segments.map((seg) => (
+                    {segments.map((seg, i) => (
                       <TappableParagraph
-                        key={seg.index}
+                        key={`${articleKey}-${seg.index}`}
                         segment={seg}
                         articleId={article.id}
                         isTapped={tappedParagraphs.has(seg.index)}
                         contentWidth={contentWidth}
+                        enterDelay={Math.min(360 + i * 30, 800)}
                       />
                     ))}
                   </View>
                 ) : article.content ? (
-                  <RenderHtml
-                    contentWidth={contentWidth}
-                    source={{ html: article.content }}
-                    tagsStyles={baseTagsStyles}
-                    defaultTextProps={{ selectable: true }}
-                  />
+                  <Animated.View
+                    entering={FadeIn.duration(ENTER_DURATION)
+                      .easing(ENTER_EASE)
+                      .delay(360)}
+                  >
+                    <RenderHtml
+                      contentWidth={contentWidth}
+                      source={{ html: article.content }}
+                      tagsStyles={baseTagsStyles}
+                      defaultTextProps={{ selectable: true }}
+                    />
+                  </Animated.View>
                 ) : (
-                  <Text style={styles.plainText}>
-                    {article.text_content}
-                  </Text>
+                  <Animated.View
+                    entering={FadeIn.duration(ENTER_DURATION)
+                      .easing(ENTER_EASE)
+                      .delay(360)}
+                  >
+                    <Text style={styles.plainText}>
+                      {article.text_content}
+                    </Text>
+                  </Animated.View>
                 )}
 
                 <View style={{ height: 60 }} />
               </ScrollView>
-            </Animated.View>
-          </GestureDetector>
-        ) : null}
+            ) : (
+              <InlineSkeleton contentWidth={contentWidth} />
+            )}
+          </Animated.View>
+        </GestureDetector>
       </SafeAreaView>
     </GestureHandlerRootView>
   );
@@ -549,11 +902,6 @@ const styles = StyleSheet.create({
     fontFamily: "Geist-Mono",
     color: colors.textTertiary,
   },
-  readTime: {
-    fontSize: 12,
-    fontFamily: "Geist-Mono",
-    color: colors.textTertiary,
-  },
   actionRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -608,9 +956,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: -2,
     top: 4,
-  },
-  heartIcon: {
-    fontSize: 12,
   },
   plainText: {
     fontFamily: "Geist",
