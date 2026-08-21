@@ -55,7 +55,7 @@ function readingTime(wordCount: number): string {
 
 const baseTagsStyles = {
   body: {
-    color: colors.text,
+    color: "#c4c0bb",
     fontFamily: "Geist",
     fontSize: 18,
     lineHeight: 32,
