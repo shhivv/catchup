@@ -46,7 +46,7 @@ def feed(
         "lead_image_url, word_count, is_read, is_archived, is_bookmarked, created_at"
     )
     rows = db.execute(
-        f"SELECT {cols} FROM articles WHERE {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        f"SELECT {cols} FROM articles WHERE {where} ORDER BY RANDOM() LIMIT ? OFFSET ?",
         (limit, offset),
     ).fetchall()
 
