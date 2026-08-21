@@ -421,19 +421,16 @@ export default function FeedReaderScreen() {
                         {readingTime(article.word_count)}
                       </Text>
                     ) : null}
-                    <View style={{ flex: 1 }} />
+                  </View>
+
+                  <View style={styles.actionRow}>
                     <Pressable onPress={toggleBookmark} hitSlop={12}>
-                      <Text
-                        style={[
-                          styles.actionIcon,
-                          { opacity: bookmarked ? 1 : 0.35 },
-                        ]}
-                      >
-                        {"\u{1F516}"}
+                      <Text style={styles.actionIcon}>
+                        {bookmarked ? "\u{1F516}" : "\u{1F3F7}\u{FE0F}"}
                       </Text>
                     </Pressable>
                     <Pressable onPress={shareArticle} hitSlop={12}>
-                      <Text style={[styles.actionIcon, { opacity: 0.5 }]}>
+                      <Text style={styles.actionIcon}>
                         {"\u{2197}\u{FE0F}"}
                       </Text>
                     </Pressable>
@@ -543,8 +540,13 @@ const styles = StyleSheet.create({
     fontFamily: "Geist-Mono",
     color: colors.textTertiary,
   },
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
   actionIcon: {
-    fontSize: 16,
+    fontSize: 20,
   },
   leadImage: {
     width: "100%",
