@@ -3,12 +3,18 @@ from pathlib import Path
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "catchup.db"
 
+_connection: sqlite3.Connection | None = None
+
 
 def get_db() -> sqlite3.Connection:
-    db = sqlite3.connect(str(DB_PATH))
+    global _connection
+    if _connection is not None:
+        return _connection
+    db = sqlite3.connect(str(DB_PATH), check_same_thread=False)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA journal_mode=WAL")
     _migrate(db)
+    _connection = db
     return db
 
 

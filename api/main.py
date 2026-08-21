@@ -41,8 +41,12 @@ def feed(
 
     total = db.execute(f"SELECT COUNT(*) AS c FROM articles WHERE {where}").fetchone()["c"]
     offset = (page - 1) * limit
+    cols = (
+        "id, url, title, excerpt, author, site_name, published_date, "
+        "lead_image_url, word_count, is_read, is_archived, is_bookmarked, created_at"
+    )
     rows = db.execute(
-        f"SELECT * FROM articles WHERE {where} ORDER BY RANDOM() LIMIT ? OFFSET ?",
+        f"SELECT {cols} FROM articles WHERE {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
         (limit, offset),
     ).fetchall()
 
