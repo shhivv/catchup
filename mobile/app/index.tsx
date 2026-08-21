@@ -540,8 +540,11 @@ export default function FeedReaderScreen() {
   const contentWidth = width - spacing.lg * 2;
 
   const [feedIds, setFeedIds] = useState<number[]>([]);
+  const feedIdsRef = useRef<number[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const currentIndexRef = useRef(0);
   const [article, setArticle] = useState<FullArticle | null>(null);
+  const articleRef = useRef<FullArticle | null>(null);
   const [segments, setSegments] = useState<Segment[]>([]);
   const [tappedParagraphs, setTappedParagraphs] = useState<Set<number>>(
     new Set()
@@ -559,6 +562,7 @@ export default function FeedReaderScreen() {
     try {
       const data = await getFeed("all", 1, 100);
       const ids = data.articles.map((a: Article) => a.id);
+      feedIdsRef.current = ids;
       setFeedIds(ids);
       if (ids.length === 0) {
         setEmpty(true);
@@ -574,6 +578,7 @@ export default function FeedReaderScreen() {
   }, []);
 
   const showArticle = useCallback((art: FullArticle) => {
+    articleRef.current = art;
     setArticle(art);
     setSegments(art.segments || []);
     setTappedParagraphs(new Set(art.tappedParagraphs || []));
@@ -596,7 +601,10 @@ export default function FeedReaderScreen() {
           showArticle(saved);
           if (ids && ids.length > 0) {
             const idx = ids.indexOf(saved.id);
-            if (idx >= 0) setCurrentIndex(idx);
+            if (idx >= 0) {
+              currentIndexRef.current = idx;
+              setCurrentIndex(idx);
+            }
             prefetchAround(ids, idx >= 0 ? idx : 0);
           }
           setLoading(false);
@@ -631,22 +639,25 @@ export default function FeedReaderScreen() {
 
   const navigate = useCallback(
     (direction: 1 | -1) => {
-      const nextIndex = currentIndex + direction;
-      if (nextIndex < 0 || nextIndex >= feedIds.length) return;
+      const ids = feedIdsRef.current;
+      const idx = currentIndexRef.current;
+      const nextIndex = idx + direction;
+      if (nextIndex < 0 || nextIndex >= ids.length) return;
 
-      if (direction === 1 && article) {
-        archiveArticle(article.id).catch(() => {});
+      if (direction === 1 && articleRef.current) {
+        archiveArticle(articleRef.current.id).catch(() => {});
       }
 
       translateX.value = 0;
       opacity.value = 0;
 
-      const nextId = feedIds[nextIndex];
+      const nextId = ids[nextIndex];
       const cached = articleCache.get(nextId);
 
       scrollRef.current?.scrollTo({ y: 0, animated: false });
+      currentIndexRef.current = nextIndex;
       setCurrentIndex(nextIndex);
-      prefetchAround(feedIds, nextIndex);
+      prefetchAround(ids, nextIndex);
 
       if (cached) {
         pendingReveal.current = "instant";
@@ -654,6 +665,7 @@ export default function FeedReaderScreen() {
         markRead(nextId).catch(() => {});
       } else {
         pendingReveal.current = "fade";
+        articleRef.current = null;
         setArticle(null);
         setArticleKey((k) => k + 1);
         fetchAndCache(nextId).then((art) => {
@@ -664,7 +676,7 @@ export default function FeedReaderScreen() {
         });
       }
     },
-    [currentIndex, feedIds, article, showArticle, translateX, opacity]
+    [showArticle, translateX, opacity]
   );
 
   const goNext = useCallback(() => navigate(1), [navigate]);
