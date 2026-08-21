@@ -9,8 +9,6 @@ export default function RootLayout() {
     Geist: require("@expo-google-fonts/geist/400Regular/Geist_400Regular.ttf"),
     "Geist-Bold": require("@expo-google-fonts/geist/700Bold/Geist_700Bold.ttf"),
     "Geist-Mono": require("@expo-google-fonts/geist-mono/400Regular/GeistMono_400Regular.ttf"),
-    "EB-Garamond": require("@expo-google-fonts/eb-garamond/400Regular/EBGaramond_400Regular.ttf"),
-    "EB-Garamond-Italic": require("@expo-google-fonts/eb-garamond/400Regular_Italic/EBGaramond_400Regular_Italic.ttf"),
   });
 
   if (!fontsLoaded) {

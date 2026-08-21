@@ -56,8 +56,8 @@ function readingTime(wordCount: number): string {
 const baseTagsStyles = {
   body: {
     color: colors.text,
-    fontFamily: "EB-Garamond",
-    fontSize: 19,
+    fontFamily: "Geist",
+    fontSize: 18,
     lineHeight: 32,
   },
   p: { marginBottom: 0, marginTop: 0 },
@@ -81,7 +81,7 @@ const baseTagsStyles = {
     borderLeftWidth: 2,
     borderLeftColor: colors.accent,
     paddingLeft: 16,
-    fontFamily: "EB-Garamond-Italic",
+    fontStyle: "italic" as const,
     color: colors.textSecondary,
   },
   img: { borderRadius: 10 },
@@ -97,7 +97,7 @@ const baseTagsStyles = {
     fontSize: 14,
     backgroundColor: colors.bgRaised,
   },
-  li: { color: colors.text, fontFamily: "EB-Garamond" },
+  li: { color: colors.text },
 };
 
 function TappableParagraph({
